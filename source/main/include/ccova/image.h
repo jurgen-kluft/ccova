@@ -6,7 +6,7 @@
 namespace ncore
 {
     static const u32 ProgramImageMagic        = 0x41564f43U;
-    static const u16 ProgramImageVersion      = 3;
+    static const u16 ProgramImageVersion      = 4;
     static const u8  ProgramImageEndianLittle = 1;
     static const u8  ProgramImageABI          = 1;
     static const u32 ProgramImageHeaderSize   = 72;

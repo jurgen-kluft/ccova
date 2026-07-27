@@ -157,8 +157,8 @@ float64 script_main() {
 
 func TestParseExpandedPrimitiveTypes(t *testing.T) {
 	script := `
-extern(0) int8 small_value;
-extern(8) uint64 flags;
+extern int8 small_value;
+extern uint64 flags;
 bool ready;
 float32 ratio;
 
@@ -211,6 +211,111 @@ float64 script_main(int input, byte tag) {
 func TestLookupNamedTypeIntAlias(t *testing.T) {
 	if LookupNamedType("int") != Int32Type {
 		t.Fatalf("expected int to alias int32")
+	}
+}
+
+func TestStructTypePreservesNaturalLayoutAndNamedFields(t *testing.T) {
+	typ, err := NewStructType("sample_t", []StructField{
+		{Name: "first", Type: Uint8Type},
+		{Name: "second", Type: Uint32Type},
+		{Name: "third", Type: Uint16Type},
+	})
+	if err != nil {
+		t.Fatalf("NewStructType failed: %v", err)
+	}
+
+	if typ.Kind != TypeStruct || typ.Size != 12 || typ.Alignment() != 4 {
+		t.Fatalf("unexpected struct layout: kind=%d size=%d alignment=%d", typ.Kind, typ.Size, typ.Alignment())
+	}
+	wantOffsets := []int{0, 4, 8}
+	for index, wantOffset := range wantOffsets {
+		if got := typ.Struct.Fields[index].ByteOffset; got != wantOffset {
+			t.Fatalf("field %d offset: got %d, want %d", index, got, wantOffset)
+		}
+	}
+	if got := typ.Struct.FieldsByName["second"]; got != 1 {
+		t.Fatalf("second field lookup: got %d, want 1", got)
+	}
+}
+
+func TestParseStructAndAutomaticExternArray(t *testing.T) {
+	program := parseProgram(t, `
+struct light_state_t {
+	uint32 m_hsv;
+	uint8 m_on_off;
+};
+
+struct home_state_t {
+	char m_date[16];
+	light_state_t m_light;
+};
+
+extern home_state_t g_home;
+
+int script_main() {
+	return 0;
+}
+`)
+
+	if len(program.Structs) != 2 {
+		t.Fatalf("expected 2 struct definitions, got %d", len(program.Structs))
+	}
+	homeType := program.Structs[1].Type
+	if homeType.Kind != TypeStruct || homeType.Size != 24 || homeType.Alignment() != 4 {
+		t.Fatalf("unexpected home layout: kind=%d size=%d alignment=%d", homeType.Kind, homeType.Size, homeType.Alignment())
+	}
+	dateField := homeType.Struct.Fields[0]
+	if dateField.Type.Kind != TypeArray || dateField.Type.Base != CharType || dateField.Type.ElementCount != 16 {
+		t.Fatalf("unexpected date field type: %#v", dateField.Type)
+	}
+	if len(program.Decls) != 1 || program.Decls[0].Index != -1 || program.Decls[0].Type != homeType {
+		t.Fatalf("unexpected extern declaration: %#v", program.Decls)
+	}
+}
+
+func TestParseRejectsExplicitExternVariableOffset(t *testing.T) {
+	tokens, err := Tokenize("extern(4) int value;")
+	if err != nil {
+		t.Fatalf("Tokenize failed: %v", err)
+	}
+	_, err = Parse(tokens)
+	if err == nil || !strings.Contains(err.Error(), "offsets are automatic") {
+		t.Fatalf("expected automatic-offset migration error, got %v", err)
+	}
+}
+
+func TestCompileRejectsAggregateLocalAndConstantOutOfBoundsIndex(t *testing.T) {
+	tests := []struct {
+		name    string
+		script  string
+		message string
+	}{
+		{
+			name: "aggregate local",
+			script: `
+struct value_t { int member; };
+void script_main() { value_t local; return; }
+`,
+			message: "cannot have aggregate type",
+		},
+		{
+			name: "constant index",
+			script: `
+struct value_t { byte values[2]; };
+extern value_t value;
+void script_main() { value.values[2] = 1; return; }
+`,
+			message: "outside [0, 2)",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			program := parseProgram(t, test.script)
+			_, err := NewCompiler().Compile(program)
+			if err == nil || !strings.Contains(err.Error(), test.message) {
+				t.Fatalf("expected %q compile error, got %v", test.message, err)
+			}
+		})
 	}
 }
 
@@ -545,8 +650,6 @@ func TestParseReportsReservedExpressionPunctuators(t *testing.T) {
 		expression string
 		message    string
 	}{
-		{"value[0]", "array indexing"},
-		{"value.member", "member access"},
 		{"value->member", "member access"},
 		{"value::member", "qualified names"},
 		{"value ? 1 : 0", "ternary expressions"},

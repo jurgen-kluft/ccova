@@ -27,8 +27,10 @@ const (
 	TokElse
 	TokExtern
 	TokFalse
+	TokStruct
 	TokBool
 	TokByte
+	TokChar
 	TokFloat32Type
 	TokFloat64Type
 	TokFor
@@ -115,7 +117,8 @@ type Token struct {
 var keywords = map[string]TokenKind{
 	"break": TokBreak, "case": TokCase, "const": TokConst, "continue": TokContinue,
 	"default": TokDefault, "else": TokElse, "extern": TokExtern, "false": TokFalse,
-	"bool": TokBool, "byte": TokByte, "float32": TokFloat32Type, "float64": TokFloat64Type,
+	"struct": TokStruct, "bool": TokBool, "byte": TokByte, "char": TokChar,
+	"float32": TokFloat32Type, "float64": TokFloat64Type,
 	"for": TokFor, "if": TokIf, "int8": TokInt8, "int16": TokInt16, "int32": TokInt32,
 	"int64": TokInt64, "return": TokReturn, "switch": TokSwitch, "true": TokTrue,
 	"uint8": TokUint8, "uint16": TokUint16, "uint32": TokUint32, "uint64": TokUint64,

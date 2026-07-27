@@ -13,7 +13,7 @@ func main() {
 	binary.LittleEndian.PutUint32(externMemory[4:], 45)
 	script := `
 extern(0) void log_alert(int data);
-extern(4) int player_health;
+extern int player_health;
 int health_drop;
 
 void script_main() {

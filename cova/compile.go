@@ -57,6 +57,7 @@ type Compiler struct {
 	functions               []SymbolBinding
 	maxLocalSlots           uint32
 	maxFrameByteSize        uint32
+	externByteSize          uint32
 	bssByteSize             uint32
 	dataByteSize            uint32
 	entryFunction           uint32
@@ -139,6 +140,7 @@ func (compiler *Compiler) Compile(program *AstProgramNode) (*RelocatableProgram,
 	compiler.functions = compiler.functions[:0]
 	compiler.maxLocalSlots = 0
 	compiler.maxFrameByteSize = 0
+	compiler.externByteSize = 0
 	compiler.bssByteSize = 0
 	compiler.dataByteSize = 0
 	compiler.entryFunction = 0
@@ -363,13 +365,14 @@ func (compiler *Compiler) registerTopLevelDecl(decl *AstTopLevelDeclNode) {
 	case DeclVariable:
 		switch decl.Scope {
 		case ScopeExtern:
-			indexU32, ok := imageUint32FromInt(decl.Index)
-			if !ok {
-				compiler.fail(fmt.Errorf("compile error on line %d: extern variable %q index %d exceeds uint32", decl.Line, decl.Name, decl.Index))
+			byteOffsetU32, ok := checkedAlignUpU32(compiler.externByteSize, binding.ByteAlignment)
+			if !ok || uint64(byteOffsetU32)+uint64(binding.ByteSize) > uint64(^uint32(0)) {
+				compiler.fail(fmt.Errorf("compile error on line %d: extern variable %q layout exceeds uint32", decl.Line, decl.Name))
 				return
 			}
-			binding.SlotIndex = indexU32
-			binding.ByteOffset = indexU32
+			binding.SlotIndex = lenU32(compiler.externSymbols)
+			binding.ByteOffset = byteOffsetU32
+			compiler.externByteSize = byteOffsetU32 + binding.ByteSize
 			compiler.externSymbols = append(compiler.externSymbols, binding)
 		case ScopeBSS:
 			byteOffsetU32 := alignUpU32(compiler.bssByteSize, binding.ByteAlignment)
@@ -399,6 +402,16 @@ func (compiler *Compiler) registerTopLevelDecl(decl *AstTopLevelDeclNode) {
 			compiler.fail(fmt.Errorf("compile error on line %d: function contract %q must be host-linked", decl.Line, decl.Name))
 			return
 		}
+		if isAggregateType(decl.Type) {
+			compiler.fail(fmt.Errorf("compile error on line %d: host-linked function %q cannot return aggregate type %s", decl.Line, decl.Name, decl.Type))
+			return
+		}
+		for _, param := range decl.Params {
+			if isAggregateType(param.Type) {
+				compiler.fail(fmt.Errorf("compile error on line %d: parameter %q cannot have aggregate type %s", param.Line, param.Name, param.Type))
+				return
+			}
+		}
 		indexU32, ok := imageUint32FromInt(decl.Index)
 		if !ok {
 			compiler.fail(fmt.Errorf("compile error on line %d: host-linked function %q slot %d exceeds uint32", decl.Line, decl.Name, decl.Index))
@@ -426,6 +439,16 @@ func (compiler *Compiler) registerScriptFunction(function *AstFunctionNode) {
 	if _, exists := compiler.symbolBindings[function.Name]; exists {
 		compiler.fail(fmt.Errorf("compile error on line %d: duplicate top-level declaration %q", function.Line, function.Name))
 		return
+	}
+	if isAggregateType(function.ReturnType) {
+		compiler.fail(fmt.Errorf("compile error on line %d: function %q cannot return aggregate type %s", function.Line, function.Name, function.ReturnType))
+		return
+	}
+	for _, param := range function.Params {
+		if isAggregateType(param.Type) {
+			compiler.fail(fmt.Errorf("compile error on line %d: parameter %q cannot have aggregate type %s", param.Line, param.Name, param.Type))
+			return
+		}
 	}
 	binding := SymbolBinding{
 		Name:          function.Name,
@@ -547,6 +570,22 @@ func (fc *functionCompiler) exprType(expr AstExprNode) *Type {
 		if binding, ok := fc.symbolBindings[node.Name]; ok {
 			return binding.Type
 		}
+	case *AstMemberExpr:
+		baseType := fc.exprType(node.Base)
+		if baseType == nil || baseType.Kind != TypeStruct || baseType.Struct == nil {
+			return nil
+		}
+		fieldIndex, ok := baseType.Struct.FieldsByName[node.Member]
+		if !ok {
+			return nil
+		}
+		return baseType.Struct.Fields[fieldIndex].Type
+	case *AstIndexExpr:
+		baseType := fc.exprType(node.Base)
+		if baseType == nil || baseType.Kind != TypeArray || baseType.Base == nil {
+			return nil
+		}
+		return baseType.Base
 	case *AstUnaryExpr:
 		if node.Op == UnaryLogicalNot {
 			return BoolType
@@ -592,15 +631,22 @@ func (fc *functionCompiler) compileExprAs(expr AstExprNode, expected *Type) {
 		}
 		fc.emitInstruction(makeAddrInstruction(segmentConst))
 		fc.code.AppendUint32(fc.internStringLiteral(node.Value))
-	case *AstIdentNode:
-		actualKind := kind
-		if actual := fc.exprType(expr); actual != nil {
-			actualKind = valueKindFromType(actual)
+	case *AstIdentNode, *AstMemberExpr, *AstIndexExpr:
+		lvalue := expr.(AstLvalueNode)
+		actualType := fc.exprType(expr)
+		if actualType == nil {
+			fc.fail(fmt.Errorf("compile error: invalid address expression %T", expr))
+			return
 		}
+		if isAggregateType(actualType) {
+			fc.fail(fmt.Errorf("compile error: aggregate value %s cannot be loaded as a scalar", actualType))
+			return
+		}
+		actualKind := valueKindFromType(actualType)
 		if actualKind == KindNone {
 			actualKind = KindInt32
 		}
-		node.astEmitAddress(fc)
+		lvalue.astEmitAddress(fc)
 		if fc.err != nil {
 			return
 		}
@@ -857,6 +903,10 @@ func (compiler *Compiler) initializeGlobal(binding SymbolBinding, expr AstExprNo
 	}
 	if binding.Scope != ScopeData && binding.Scope != ScopeConst {
 		compiler.fail(fmt.Errorf("compile error on line %d: initializer for %q requires static storage", line, binding.Name))
+		return
+	}
+	if isAggregateType(binding.Type) {
+		compiler.fail(fmt.Errorf("compile error on line %d: aggregate initializer for %q is not supported yet", line, binding.Name))
 		return
 	}
 	bindingKind := valueKindFromType(binding.Type)
@@ -1183,6 +1233,14 @@ func (fc *functionCompiler) compileStmt(stmt AstStmtNode) {
 			return
 		}
 		targetType := fc.exprType(node.Target)
+		if targetType == nil {
+			fc.fail(fmt.Errorf("compile error on line %d: assignment target has invalid type", node.Line))
+			return
+		}
+		if isAggregateType(targetType) {
+			fc.fail(fmt.Errorf("compile error on line %d: whole-aggregate assignment is not supported", node.Line))
+			return
+		}
 		if node.Op == "" || node.Op == AssignSimple {
 			fc.compileExprAs(node.Value, targetType)
 		} else {
@@ -1252,6 +1310,10 @@ func (fc *functionCompiler) allocateLocal(name string, typ *Type, line int) {
 	}
 	if typ.Kind == TypeVoid {
 		fc.fail(fmt.Errorf("compile error on line %d: local variable %q cannot have type void", line, name))
+		return
+	}
+	if isAggregateType(typ) {
+		fc.fail(fmt.Errorf("compile error on line %d: local variable %q cannot have aggregate type %s", line, name, typ))
 		return
 	}
 	if len(fc.localScopeStack) == 0 {
@@ -1459,6 +1521,61 @@ func (node *AstIdentNode) astEmitAddress(fc *functionCompiler) {
 		}
 	}
 	fc.fail(fmt.Errorf("compile error on line %d: unknown variable %q", node.Line, node.Name))
+}
+
+func (node *AstMemberExpr) astEmitAddress(fc *functionCompiler) {
+	baseType := fc.exprType(node.Base)
+	if baseType == nil || baseType.Kind != TypeStruct || baseType.Struct == nil {
+		fc.fail(fmt.Errorf("compile error on line %d: member access requires a struct value", node.Line))
+		return
+	}
+	fieldIndex, ok := baseType.Struct.FieldsByName[node.Member]
+	if !ok {
+		fc.fail(fmt.Errorf("compile error on line %d: struct %q has no member %q", node.Line, baseType.Name, node.Member))
+		return
+	}
+	node.Base.astEmitAddress(fc)
+	if fc.err != nil {
+		return
+	}
+	fc.emitAddressOffset(int32(baseType.Struct.Fields[fieldIndex].ByteOffset))
+}
+
+func (node *AstIndexExpr) astEmitAddress(fc *functionCompiler) {
+	baseType := fc.exprType(node.Base)
+	if baseType == nil || baseType.Kind != TypeArray || baseType.Base == nil {
+		fc.fail(fmt.Errorf("compile error on line %d: indexing requires an array value", node.Line))
+		return
+	}
+	if literal, ok := node.Index.(*AstNumberLiteral); ok && !literal.IsFloat && (literal.IntValue < 0 || literal.IntValue >= baseType.ElementCount) {
+		fc.fail(fmt.Errorf("compile error on line %d: array index %d is outside [0, %d)", node.Line, literal.IntValue, baseType.ElementCount))
+		return
+	}
+	node.Base.astEmitAddress(fc)
+	if fc.err != nil {
+		return
+	}
+	indexType := fc.exprType(node.Index)
+	if indexType == nil || !indexType.IsNumeric() || indexType.IsFloat() {
+		fc.fail(fmt.Errorf("compile error on line %d: array index must be an integer", node.Line))
+		return
+	}
+	fc.compileExprAs(node.Index, Int32Type)
+	if baseType.Base.Size != 1 {
+		fc.emitTyped(OpPush, KindInt32)
+		fc.code.AppendImmediate(KindInt32, uint64(baseType.Base.Size))
+		fc.emitInstruction(makeArithmeticInstruction(KindInt32, ArithmeticMul))
+	}
+	fc.emitTyped(OpOffset, KindInt32)
+}
+
+func (fc *functionCompiler) emitAddressOffset(offset int32) {
+	if offset == 0 {
+		return
+	}
+	fc.emitTyped(OpPush, KindInt32)
+	fc.code.AppendImmediate(KindInt32, uint64(uint32(offset)))
+	fc.emitTyped(OpOffset, KindInt32)
 }
 
 func (fc *functionCompiler) emit(op Opcode) {

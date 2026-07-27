@@ -12,9 +12,9 @@ namespace
 {
     static void write_array_header(byte* block, u32 header_offset, u32 count, u32 data_offset)
     {
-        write_le_u32(block + header_offset, count);
-        const s32 relative_offset = count == 0 ? 0 : (s32)data_offset - (s32)(header_offset + 4);
-        write_le_u32(block + header_offset + 4, (u32)relative_offset);
+        const s32 relative_offset = count == 0 ? 0 : (s32)data_offset - (s32)header_offset;
+        write_le_u32(block + header_offset, (u32)relative_offset);
+        write_le_u32(block + header_offset + 4, count);
     }
 
     static void write_function(byte* block, u32 offset, u32 body_address, u32 param_start, u32 param_count, u32 frame_byte_size, evaluekind_t return_kind)

@@ -1,13 +1,10 @@
 package cova
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestCompileComputesByteLayoutMetadata(t *testing.T) {
 	script := `
-extern(8) uint64 flags;
+extern uint64 flags;
 bool ready;
 int32 count;
 int16 small;
@@ -34,7 +31,7 @@ void script_main(int8 tag, uint64 mask) {
 		t.Fatalf("expected 1 extern symbol, got %d", len(compiled.ProgramSymbols.ExternSymbols))
 	}
 	extern := compiled.ProgramSymbols.ExternSymbols[0]
-	if extern.ByteOffset != 8 || extern.ByteSize != 8 || extern.ByteAlignment != 8 {
+	if extern.ByteOffset != 0 || extern.ByteSize != 8 || extern.ByteAlignment != 8 {
 		t.Fatalf("unexpected extern layout: offset=%d size=%d align=%d", extern.ByteOffset, extern.ByteSize, extern.ByteAlignment)
 	}
 
@@ -64,9 +61,10 @@ void script_main(int8 tag, uint64 mask) {
 	}
 }
 
-func TestLinkRejectsMisalignedExternOffset(t *testing.T) {
+func TestCompileAlignsAutomaticExternOffsets(t *testing.T) {
 	script := `
-extern(1) int32 bad;
+extern uint8 prefix;
+extern int32 value;
 
 void script_main() {
 	return;
@@ -85,18 +83,20 @@ void script_main() {
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	_, err = NewLinker(64, 0).Link(program, compiled)
-	if err == nil {
-		t.Fatal("expected link error for misaligned extern offset")
+	if len(compiled.ProgramSymbols.ExternSymbols) != 2 {
+		t.Fatalf("expected 2 extern symbols, got %d", len(compiled.ProgramSymbols.ExternSymbols))
 	}
-	if !strings.Contains(err.Error(), "not aligned") {
-		t.Fatalf("expected alignment error, got %v", err)
+	if got := compiled.ProgramSymbols.ExternSymbols[0].ByteOffset; got != 0 {
+		t.Fatalf("expected prefix at offset 0, got %d", got)
+	}
+	if got := compiled.ProgramSymbols.ExternSymbols[1].ByteOffset; got != 4 {
+		t.Fatalf("expected value at offset 4, got %d", got)
 	}
 }
 
 func TestLinkAttachesDebugSymbolsSeparately(t *testing.T) {
 	script := `
-extern(8) uint64 flags;
+extern uint64 flags;
 bool ready;
 
 void script_main() {

@@ -137,7 +137,8 @@ func TestRunSupportsInternalGlobalsAndScriptCalls(t *testing.T) {
 	logged := 0
 	script := `
 extern(0) void log_alert(int data);
-extern(4) int player_health;
+extern byte host_prefix[4];
+extern int player_health;
 int health_drop;
 
 void script_main() {
@@ -440,9 +441,9 @@ void script_main() {
 func TestRunSupportsInt64ByteAndBoolKinds(t *testing.T) {
 	externMemory := make([]byte, 10)
 	script := `
-extern(0) int64 total;
-extern(8) byte flag;
-extern(9) bool ready;
+extern int64 total;
+extern byte flag;
+extern bool ready;
 
 void script_main() {
 	total = bump(40);
@@ -477,9 +478,9 @@ func TestRunSupportsBooleanLiteralsAndLogicalShortCircuit(t *testing.T) {
 	externMemory := make([]byte, 3)
 	markCalls := 0
 	script := `
-extern(0) bool and_value;
-extern(1) bool or_value;
-extern(2) bool normalized;
+extern bool and_value;
+extern bool or_value;
+extern bool normalized;
 extern(0) int mark_true();
 
 void script_main() {
@@ -521,11 +522,11 @@ func TestRunSupportsBooleanFunctionBoundariesAndEvaluatesLogicalRightHandWhenNee
 	externMemory := make([]byte, 5)
 	markTrueCalls := 0
 	script := `
-extern(0) bool and_value;
-extern(1) bool or_value;
-extern(2) bool mixed_value;
-extern(3) bool returned_value;
-extern(4) bool param_value;
+extern bool and_value;
+extern bool or_value;
+extern bool mixed_value;
+extern bool returned_value;
+extern bool param_value;
 extern(0) int mark_true();
 
 bool is_match(int value) {
@@ -675,8 +676,8 @@ func TestHostInteropPreservesUint64Bits(t *testing.T) {
 	externMemory := make([]byte, 16)
 	binary.LittleEndian.PutUint64(externMemory[0:], uint64(1)<<63)
 	script := `
-extern(0) uint64 source;
-extern(8) uint64 sink;
+extern uint64 source;
+extern uint64 sink;
 extern(0) void inspect(uint64 value);
 extern(1) uint64 bounce(uint64 value);
 
@@ -722,7 +723,7 @@ func TestRunLeavesFinalReturnOnStack(t *testing.T) {
 	externMemory := make([]byte, 8)
 	binary.LittleEndian.PutUint64(externMemory[0:], uint64(1)<<63)
 	script := `
-extern(0) uint64 source;
+extern uint64 source;
 
 uint64 script_main() {
 	return source;

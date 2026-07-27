@@ -8,7 +8,7 @@ import (
 
 const (
 	ProgramImageMagic               = uint32('C') | uint32('O')<<8 | uint32('V')<<16 | uint32('A')<<24
-	ProgramImageVersion      uint16 = 3
+	ProgramImageVersion      uint16 = 4
 	ProgramImageEndianLittle uint8  = 1
 	ProgramImageABI          uint8  = 1
 
@@ -21,14 +21,14 @@ const (
 type ProgramImageValueKind uint8
 
 type ProgramImageStringHeader struct {
+	DataOff int32
 	ByteLen uint16
 	RuneLen uint16
-	DataOff int32
 }
 
 type ProgramImageArrayHeader struct {
-	Len     uint32
 	DataOff int32
+	Len     uint32
 }
 
 type ProgramImageFunction struct {

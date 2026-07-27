@@ -19,6 +19,13 @@ func TestProgramImageSchemaUsesCastableTypes(t *testing.T) {
 	if reflect.TypeOf(ProgramImageFunction{}).Size() != ProgramImageFunctionSize {
 		t.Fatalf("function record size = %d, want %d", reflect.TypeOf(ProgramImageFunction{}).Size(), ProgramImageFunctionSize)
 	}
+	arrayType := reflect.TypeOf(ProgramImageArrayHeader{})
+	if got := arrayType.Field(0).Offset; got != 0 {
+		t.Fatalf("array data offset field = %d, want 0", got)
+	}
+	if got := arrayType.Field(1).Offset; got != 4 {
+		t.Fatalf("array length field = %d, want 4", got)
+	}
 }
 
 func TestBuildProgramImageIsDeterministicAndRoundTrips(t *testing.T) {
@@ -68,10 +75,39 @@ int script_main() {
 	if got := binary.LittleEndian.Uint32(imageA[20:24]); got != linked.FrameByteSize {
 		t.Fatalf("serialized frame byte size = %d, want %d", got, linked.FrameByteSize)
 	}
-	functionDisplacement := int32(binary.LittleEndian.Uint32(imageA[28:32]))
-	functionOffset := int64(28) + int64(functionDisplacement)
+	functionDisplacement := int32(binary.LittleEndian.Uint32(imageA[24:28]))
+	functionOffset := int64(24) + int64(functionDisplacement)
 	if functionDisplacement == 0 || functionOffset < ProgramImageHeaderSize || functionOffset >= int64(len(imageA)) {
 		t.Fatalf("invalid relative functions pointer: displacement=%d target=%d", functionDisplacement, functionOffset)
+	}
+	if got := binary.LittleEndian.Uint32(imageA[28:32]); got != uint32(len(linked.Functions)) {
+		t.Fatalf("serialized function count = %d, want %d", got, len(linked.Functions))
+	}
+	arrayHeaders := []struct {
+		offset int
+		length int
+	}{
+		{24, len(linked.Functions)},
+		{32, len(linked.ParamKinds)},
+		{40, len(linked.ParamOffsets)},
+		{48, len(linked.Text)},
+		{56, len(linked.ConstData)},
+		{64, len(linked.DataData)},
+	}
+	for _, header := range arrayHeaders {
+		displacement := int32(binary.LittleEndian.Uint32(imageA[header.offset : header.offset+4]))
+		if got := binary.LittleEndian.Uint32(imageA[header.offset+4 : header.offset+8]); got != uint32(header.length) {
+			t.Fatalf("array length at %d = %d, want %d", header.offset, got, header.length)
+		}
+		if (displacement == 0) != (header.length == 0) {
+			t.Fatalf("array pointer at %d = %d for length %d", header.offset, displacement, header.length)
+		}
+		if displacement != 0 {
+			target := int64(header.offset) + int64(displacement)
+			if target < ProgramImageHeaderSize || target >= int64(len(imageA)) {
+				t.Fatalf("array pointer at %d targets %d outside image", header.offset, target)
+			}
+		}
 	}
 	if !bytes.Equal(image.Text, linked.Text) {
 		t.Fatal("text view mismatch")
@@ -106,6 +142,16 @@ func TestOpenProgramImageRejectsCorruptionAndInvalidSchema(t *testing.T) {
 	truncated := blob[:len(blob)-1]
 	if status := OpenProgramImageStatus(truncated); status != VMStatusInvalidImage {
 		t.Fatalf("truncated image status = %s, want invalid image", status)
+	}
+	version3 := append([]byte(nil), blob...)
+	binary.LittleEndian.PutUint16(version3[4:6], 3)
+	if status := OpenProgramImageStatus(version3); status != VMStatusUnsupportedImage {
+		t.Fatalf("version 3 image status = %s, want unsupported image", status)
+	}
+	contradictoryArray := append([]byte(nil), blob...)
+	binary.LittleEndian.PutUint32(contradictoryArray[32:36], 0)
+	if status := OpenProgramImageStatus(contradictoryArray); status != VMStatusInvalidImage {
+		t.Fatalf("null parameter-kind data with non-zero length status = %s, want invalid image", status)
 	}
 	image, status := linkedProgramToImage(linked)
 	if status != VMStatusOK {

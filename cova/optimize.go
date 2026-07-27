@@ -188,6 +188,12 @@ func (optimizer *optimizer) optimizeExpr(expression AstExprNode, expected *Type)
 			}
 			node.Args[index] = optimized
 		}
+	case *AstIndexExpr:
+		optimized, err := optimizer.optimizeExpr(node.Index, Int32Type)
+		if err != nil {
+			return nil, err
+		}
+		node.Index = optimized
 	}
 	return expression, nil
 }
@@ -283,6 +289,22 @@ func (optimizer *optimizer) exprType(expression AstExprNode) *Type {
 			}
 		}
 		return optimizer.globals[node.Name]
+	case *AstMemberExpr:
+		baseType := optimizer.exprType(node.Base)
+		if baseType == nil || baseType.Kind != TypeStruct || baseType.Struct == nil {
+			return nil
+		}
+		fieldIndex, ok := baseType.Struct.FieldsByName[node.Member]
+		if !ok {
+			return nil
+		}
+		return baseType.Struct.Fields[fieldIndex].Type
+	case *AstIndexExpr:
+		baseType := optimizer.exprType(node.Base)
+		if baseType == nil || baseType.Kind != TypeArray {
+			return nil
+		}
+		return baseType.Base
 	case *AstUnaryExpr:
 		if node.Op == UnaryLogicalNot {
 			return BoolType

@@ -102,6 +102,10 @@ func (core *parserCore) parseLocalDeclStmt() (AstStmtNode, error) {
 	if typ.Kind == TypeVoid {
 		return nil, fmt.Errorf("syntax error on line %d: local variable %q cannot have type void", line, nameToken.Text)
 	}
+	typ, err = core.parseArrayDeclarator(typ)
+	if err != nil {
+		return nil, err
+	}
 	var initializer AstExprNode
 	if core.match(TokAssign) {
 		initializer, err = core.parseExpression()

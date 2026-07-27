@@ -6,29 +6,29 @@ The language is designed for small host-integrated scripts that work with primit
 
 ## What It Supports
 
-- Primitive types: `bool`, `byte`, `int`/`int32`, `int8`, `int16`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`
-- Top-level globals
+- Primitive types: `bool`, `byte`, `char`, `int`/`int32`, `int8`, `int16`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`
+- Top-level globals and named structs with naturally aligned fields
+- Fixed arrays with expression indexing and chained struct member access
 - Typed, block-scoped local variables inside functions
 - Script functions with typed parameters and returns
 - String literals passed as pointer values
-- Expressions using `true`, `false`, `+`, `-`, `*`, `/`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`
+- Arithmetic, comparison, logical, unary, modulo, bitwise, and shift expressions
+- Arithmetic, bitwise, and shift compound assignments
 - Control flow: `if`, `if/else`, `while`, `for`, `switch`, `break`, `continue`, `return`
-- Built-ins; 
-  - `sin`, `cos`, `tan`, `asin`, `acos`, `atan` `sqrt`, `pow`
-- `//` single-line comments
-- `/* ... */` block comments
-- `extern(offset)` variables backed by host memory
+- Math built-ins: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sqrt`, `pow`
+- `//` single-line and `/* ... */` block comments
+- `extern` variables with naturally aligned offsets assigned in source order
 - `extern(slot)` functions dispatched by the host
 
 ## Current Limits
 
 - No local declarations in `for` initializers
-- No `/* ... */` block comments in expressions
 - Standalone expression statements must be function calls
-- No arrays, structs, or field access
-- No unary operators such as `-x`, `!x`, `*ptr`, or `&x`
-- No bitwise operators or modulo
-- Pointer types can be declared in signatures and declarations, but source-level pointer operators are not implemented
+- Struct definitions are top-level only; struct and array values cannot be locals, parameters, or return values
+- Whole-aggregate assignment and aggregate initialization are not supported
+- Constant array indexes are checked at compile time; dynamic indexes have segment bounds protection but no per-array bounds check
+- Pointer types can be declared, but address-of, dereference, and pointer member access are not implemented
+- Ternary expressions, increment/decrement, variadics, and preprocessing are not implemented
 - Recursive script call cycles are rejected at compile time
 
 String literals are stored in a CONST segment as NUL-terminated byte strings. Zero-initialized globals remain in BSS, while initialized writable globals are placed in DATA.
@@ -81,24 +81,33 @@ The optimizer is intentionally isolated from compiler and VM internals. It owns 
 
 ```c
 extern(0) void log_alert(int value);
-extern(4) int player_health;
+
+struct player_state {
+    int health;
+    char alerts[4];
+};
+
+extern player_state player;
 
 int health_drop;
 
 void script_main() {
     health_drop = 5;
-    if ((player_health - 40) + 1) {
-        log_alert(player_health);
+    if (player.health < 40) {
+        player.alerts[0] = 1;
+        log_alert(player.health);
         reduce_health(health_drop);
     }
     return;
 }
 
 void reduce_health(int delta) {
-    player_health = player_health - delta;
+    player.health = player.health - delta;
     return;
 }
 ```
+
+Extern functions keep explicit host dispatch slots. Extern variables omit offsets; the compiler lays them out automatically using their natural alignment.
 
 ## Documentation
 
@@ -111,6 +120,7 @@ Run the test suite with:
 ```sh
 cd cova
 go test ./...
+go test -race ./...
 ```
 
 ### Embedded native VM fixture
@@ -130,6 +140,6 @@ Ordinary Go test runs only verify that the tracked fixture matches freshly gener
 
 ```sh
 cd target/clay
-./clay build --build debug-dev-test
-./build/darwin-arm64-debug-dev-test/unittest_ccova/unittest_ccova
+./clay build --build release-dev-test
+./build/darwin-arm64-release-dev-test/unittest_ccova/unittest_ccova
 ```

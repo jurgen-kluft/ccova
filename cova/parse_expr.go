@@ -43,6 +43,35 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 			left = &AstCallExpr{Callee: ident.Name, Args: args, Line: ident.Line}
 			continue
 		}
+		if token.Kind == TokDot {
+			base, ok := left.(AstLvalueNode)
+			if !ok {
+				return nil, parser.core.errorf(token, "member base is not addressable")
+			}
+			parser.core.pos++
+			member, err := parser.core.expect(TokIdent)
+			if err != nil {
+				return nil, err
+			}
+			left = &AstMemberExpr{Base: base, Member: member.Text, Line: token.Line}
+			continue
+		}
+		if token.Kind == TokLBracket {
+			base, ok := left.(AstLvalueNode)
+			if !ok {
+				return nil, parser.core.errorf(token, "index base is not addressable")
+			}
+			parser.core.pos++
+			index, err := parser.parseExpressionWithBindingPower(0)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := parser.core.expect(TokRBracket); err != nil {
+				return nil, err
+			}
+			left = &AstIndexExpr{Base: base, Index: index, Line: token.Line}
+			continue
+		}
 
 		leftBP, rightBP, ok := infixBindingPower(token)
 		if !ok || leftBP < minBindingPower {
@@ -139,9 +168,7 @@ var binaryOps = map[TokenKind]BinaryOp{
 
 func unsupportedExpressionToken(kind TokenKind) string {
 	switch kind {
-	case TokLBracket, TokRBracket:
-		return "array indexing is not supported"
-	case TokDot, TokArrow:
+	case TokArrow:
 		return "member access is not supported"
 	case TokColonColon:
 		return "qualified names are not supported"

@@ -8,7 +8,7 @@ The language is a small, typed, C-like scripting language intended to compile in
 
 ```c
 extern(0) void log_alert(int value);
-extern(4) int player_health;
+extern int player_health;
 
 int health_drop;
 
@@ -36,6 +36,9 @@ The language currently supports:
 - `const` globals, locals, and parameters
 - Host-linked `extern` variables
 - Host-linked `extern` functions
+- Top-level named structs with naturally aligned fields
+- Fixed arrays and `char`
+- Chained struct member and array index access
 - Script-defined functions
 - Primitive numeric and boolean-like types
 - String literals lowered to pointer values
@@ -50,12 +53,10 @@ The language currently supports:
 The language does not currently support:
 
 - Local variable declarations inside `for` initializers
-- Arrays
-- Structs
-- Field access
 - Address-of and dereference expressions such as `&x` and `*ptr`
 - Usable source-level pointer operations
-- Member access, indexing, ternary expressions, increment/decrement, variadics, and preprocessing
+- Whole-aggregate assignment, aggregate initializers, and aggregate function values
+- Pointer member access (`->`), ternary expressions, increment/decrement, variadics, and preprocessing
 
 ## Compact Grammar
 
@@ -64,18 +65,21 @@ This grammar is intentionally compact. It shows the syntax that is currently acc
 ```ebnf
 program        ::= top_level*
 
-top_level      ::= extern_decl | global_decl | function_decl
+top_level      ::= struct_decl | extern_decl | global_decl | function_decl
 
-extern_decl    ::= "extern" "(" number ")" type ident extern_tail ";"
-extern_tail    ::= "(" param_list? ")" | ε
-global_decl    ::= type ident ("=" expr)? ";"
+struct_decl    ::= "struct" ident "{" field_decl* "}" ";"
+field_decl     ::= type declarator ";"
+extern_decl    ::= "extern" type declarator ";"
+                 | "extern" "(" number ")" type ident "(" param_list? ")" ";"
+global_decl    ::= type declarator ("=" expr)? ";"
 function_decl  ::= type ident "(" param_list? ")" block
+declarator     ::= ident ("[" integer_literal "]")*
 
 param_list     ::= param ("," param)*
-param          ::= type ident
+param          ::= type declarator
 const_qualifier ::= "const"
 type           ::= const_qualifier? named_type const_qualifier? ("*" const_qualifier?)*
-named_type     ::= "void" | "bool" | "byte" | "int" |
+named_type     ::= ident | "void" | "bool" | "byte" | "char" | "int" |
                    "int8" | "int16" | "int32" | "int64" |
                    "uint8" | "uint16" | "uint32" | "uint64" |
                    "float32" | "float64"
@@ -122,7 +126,8 @@ expr_stmt      ::= expr ";"
  shift          ::= additive (("<<" | ">>") additive)*
  additive       ::= multiplicative (("+" | "-") multiplicative)*
  multiplicative ::= unary (("*" | "/" | "%") unary)*
- unary          ::= ("!" | "~" | "-") unary | primary
+ unary          ::= ("!" | "~" | "-") unary | postfix
+ postfix        ::= primary (("." ident) | ("[" expr "]"))*
  primary        ::= boolean
                   | number
                   | string
@@ -131,7 +136,7 @@ expr_stmt      ::= expr ";"
                  | "(" expr ")"
 call           ::= ident "(" arg_list? ")"
 arg_list       ::= expr ("," expr)*
-lvalue         ::= ident
+lvalue         ::= ident (("." ident) | ("[" expr "]"))*
 
 ident          ::= identifier
  boolean       ::= "true" | "false"
@@ -150,7 +155,7 @@ Notes:
 A line comment starts with `//` and continues to the end of the line. It can occupy a whole line or follow source code.
 
 ```c
-extern(0) int player_health;
+extern int player_health;
 
 void apply_damage() {
     // Use the host-provided health value.
@@ -165,7 +170,7 @@ The tokenizer emits physical newline tokens for tooling. The parser ignores them
 
 ## Recognized Punctuators
 
-The tokenizer recognizes ordinary C-like punctuators, including `[]`, `.`, `->`, `?`, `++`, `--`, `...`, `#`, and `##`, plus `::`. Recognition reserves a stable lexical vocabulary; it does not make the corresponding language feature available. Arrays, member access, qualified names, ternary expressions, increment/decrement, variadics, and preprocessing currently produce parser errors. ISO C digraph aliases are not recognized.
+The tokenizer recognizes ordinary C-like punctuators, including `[]`, `.`, `->`, `?`, `++`, `--`, `...`, `#`, and `##`, plus `::`. Fixed-array indexing and `.` member access are implemented. Pointer member access, qualified names, ternary expressions, increment/decrement, variadics, and preprocessing remain unsupported. ISO C digraph aliases are not recognized.
 
 ## Top-Level Declarations
 
@@ -199,15 +204,15 @@ const uint8* const asset_path = "asset/button_off";
 
 ### Extern variables
 
-Extern variables map onto a host-provided memory block by byte offset.
+Extern variables map onto a host-provided memory block. The compiler assigns naturally aligned byte offsets in source declaration order.
 
 ```c
-extern(0) int32 health;
-extern(8) uint64 flags;
-extern(16) float64 temperature;
+extern int32 health;       // offset 0
+extern uint64 flags;       // offset 8
+extern float64 temperature; // offset 16
 ```
 
-`extern(N)` gives the byte offset inside the extern memory block.
+Parenthesized slots remain required for extern functions, but explicit offsets are no longer accepted for extern variables.
 
 `extern` variables cannot be declared with `const`.
 
@@ -693,12 +698,12 @@ Host interop happens through `extern` declarations.
 
 ### Extern memory
 
-The host can bind a byte slice as extern memory. Script variables declared with `extern(offset)` read and write into that memory.
+The host can bind a byte slice as extern memory. Extern variables read and write at compiler-generated, naturally aligned offsets.
 
 ```c
-extern(0) int64 total;
-extern(8) byte flag;
-extern(9) bool ready;
+extern int64 total;
+extern byte flag;
+extern bool ready;
 ```
 
 Script:
@@ -745,15 +750,13 @@ Treat pointers as reserved or incomplete rather than usable.
 
 Unary address-of `&x` and dereference `*ptr` are not currently supported. The same characters are supported as binary bitwise AND and multiplication operators.
 
-### No strings or aggregates
+### Aggregate restrictions
 
-These are not currently supported:
+Struct definitions are top-level only. Struct and array values may be uninitialized extern globals or zero-initialized internal globals, but cannot be locals, parameters, or return values. Whole-aggregate assignment and aggregate initialization are not supported yet.
 
-- strings
-- arrays
-- structs
-- field access
-- indexing
+Each struct is one contiguous memory block. Fields are laid out in declaration order using natural alignment, and the final size is rounded to the maximum field alignment. The compiler retains the ordered fields, member names, types, and relative byte offsets; the runtime image does not contain struct reflection metadata.
+
+Fixed arrays use `type name[count]` syntax. Constant indexes are checked at compile time. Dynamic indexes have VM segment bounds protection but no per-array bounds check.
 
 ### No local declarations in `for` initializers
 
@@ -829,7 +832,7 @@ void script_main() {
 ### Extern memory
 
 ```c
-extern(4) int value;
+extern int value;
 
 void script_main() {
     value = value + 9;

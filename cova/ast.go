@@ -1,8 +1,15 @@
 package cova
 
 type AstProgramNode struct {
+	Structs   []*AstStructDeclNode
 	Decls     []*AstTopLevelDeclNode
 	Functions []*AstFunctionNode
+}
+
+type AstStructDeclNode struct {
+	Name string
+	Type *Type
+	Line int
 }
 
 type AstParameter struct {
@@ -180,6 +187,18 @@ type AstIdentNode struct {
 	Line int
 }
 
+type AstMemberExpr struct {
+	Base   AstLvalueNode
+	Member string
+	Line   int
+}
+
+type AstIndexExpr struct {
+	Base  AstLvalueNode
+	Index AstExprNode
+	Line  int
+}
+
 type AstBinaryExpr struct {
 	Op    BinaryOp
 	Left  AstExprNode
@@ -213,6 +232,8 @@ func (*AstContinueStmt) astStmtNode()  {}
 func (*AstNumberLiteral) astExprNode() {}
 func (*AstStringLiteral) astExprNode() {}
 func (*AstIdentNode) astExprNode()     {}
+func (*AstMemberExpr) astExprNode()    {}
+func (*AstIndexExpr) astExprNode()     {}
 func (*AstBinaryExpr) astExprNode()    {}
 func (*AstUnaryExpr) astExprNode()     {}
 func (*AstCallExpr) astExprNode()      {}

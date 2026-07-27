@@ -1,5 +1,7 @@
 package cova
 
+import "fmt"
+
 type TypeKind uint8
 
 const (
@@ -19,14 +21,33 @@ const (
 	TypeFloat64
 	TypePointer
 	TypeString
+	TypeChar
+	TypeArray
+	TypeStruct
 )
 
+type StructField struct {
+	Name       string
+	Type       *Type
+	ByteOffset int
+}
+
+type StructType struct {
+	Name         string
+	Fields       []StructField
+	FieldsByName map[string]int
+	Size         int
+	Alignment    int
+}
+
 type Type struct {
-	Kind    TypeKind
-	Name    string
-	Size    int
-	Base    *Type
-	IsConst bool
+	Kind         TypeKind
+	Name         string
+	Size         int
+	Base         *Type
+	ElementCount int
+	Struct       *StructType
+	IsConst      bool
 }
 
 func (typ *Type) String() string {
@@ -42,6 +63,9 @@ func (typ *Type) String() string {
 			return prefix + "<invalid>*"
 		}
 		return typ.Base.String() + "*" + suffixConst(typ.IsConst)
+	}
+	if typ.Kind == TypeArray {
+		return fmt.Sprintf("%s[%d]", typ.Base.String(), typ.ElementCount)
 	}
 	return prefix + typ.Name
 }
@@ -62,6 +86,12 @@ func (typ *Type) Alignment() int {
 	}
 	if typ.Kind == TypePointer || typ.Kind == TypeString {
 		return 4
+	}
+	if typ.Kind == TypeArray && typ.Base != nil {
+		return typ.Base.Alignment()
+	}
+	if typ.Kind == TypeStruct && typ.Struct != nil {
+		return typ.Struct.Alignment
 	}
 	if typ.Size <= 1 {
 		return 1
@@ -87,6 +117,7 @@ var (
 	Float32Type = &Type{Kind: TypeFloat32, Name: "float32", Size: 4}
 	Float64Type = &Type{Kind: TypeFloat64, Name: "float64", Size: 8}
 	StringType  = &Type{Kind: TypeString, Name: "string", Size: 4, Base: Uint8Type}
+	CharType    = &Type{Kind: TypeChar, Name: "char", Size: 1}
 	IntType     = Int32Type
 )
 
@@ -94,6 +125,7 @@ var namedTypes = map[string]*Type{
 	"void":    VoidType,
 	"bool":    BoolType,
 	"byte":    ByteType,
+	"char":    CharType,
 	"int":     IntType,
 	"int8":    Int8Type,
 	"int16":   Int16Type,
@@ -172,12 +204,96 @@ func PointerToQualified(base *Type, isConst bool) *Type {
 	return &Type{Kind: TypePointer, Name: base.Name + "*", Size: 4, Base: base, IsConst: isConst}
 }
 
+func ArrayOf(elementType *Type, count int) (*Type, error) {
+	if elementType == nil || elementType.Kind == TypeVoid {
+		return nil, fmt.Errorf("array element type must be complete")
+	}
+	if count <= 0 {
+		return nil, fmt.Errorf("array element count must be positive")
+	}
+	if elementType.Size > int(^uint(0)>>1)/count {
+		return nil, fmt.Errorf("array byte size overflows int")
+	}
+	byteSize := elementType.Size * count
+	if uint64(byteSize) > uint64(addressIndexMask)+1 {
+		return nil, fmt.Errorf("array byte size exceeds the VM segment address space")
+	}
+	return &Type{
+		Kind:         TypeArray,
+		Name:         fmt.Sprintf("%s[%d]", elementType.Name, count),
+		Size:         byteSize,
+		Base:         elementType,
+		ElementCount: count,
+	}, nil
+}
+
+func NewStructType(name string, fields []StructField) (*Type, error) {
+	if name == "" {
+		return nil, fmt.Errorf("struct name cannot be empty")
+	}
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("struct %q must declare at least one field", name)
+	}
+	descriptor := &StructType{
+		Name:         name,
+		Fields:       make([]StructField, 0, len(fields)),
+		FieldsByName: make(map[string]int, len(fields)),
+		Alignment:    1,
+	}
+	offset := 0
+	for _, field := range fields {
+		if field.Name == "" {
+			return nil, fmt.Errorf("struct %q has a field with no name", name)
+		}
+		if _, exists := descriptor.FieldsByName[field.Name]; exists {
+			return nil, fmt.Errorf("struct %q has duplicate field %q", name, field.Name)
+		}
+		if field.Type == nil || field.Type.Kind == TypeVoid || field.Type.Size <= 0 {
+			return nil, fmt.Errorf("struct %q field %q must have a complete type", name, field.Name)
+		}
+		alignment := field.Type.Alignment()
+		if alignment > descriptor.Alignment {
+			descriptor.Alignment = alignment
+		}
+		alignedOffset, ok := alignUpInt(offset, alignment)
+		if !ok || field.Type.Size > int(^uint(0)>>1)-alignedOffset {
+			return nil, fmt.Errorf("struct %q layout overflows int", name)
+		}
+		field.ByteOffset = alignedOffset
+		descriptor.FieldsByName[field.Name] = len(descriptor.Fields)
+		descriptor.Fields = append(descriptor.Fields, field)
+		offset = alignedOffset + field.Type.Size
+	}
+	size, ok := alignUpInt(offset, descriptor.Alignment)
+	if !ok {
+		return nil, fmt.Errorf("struct %q layout overflows int", name)
+	}
+	descriptor.Size = size
+	if uint64(size) > uint64(addressIndexMask)+1 {
+		return nil, fmt.Errorf("struct %q byte size exceeds the VM segment address space", name)
+	}
+	return &Type{Kind: TypeStruct, Name: name, Size: size, Struct: descriptor}, nil
+}
+
+func alignUpInt(value int, alignment int) (int, bool) {
+	if alignment <= 1 {
+		return value, value >= 0
+	}
+	if value < 0 || value > int(^uint(0)>>1)-(alignment-1) {
+		return 0, false
+	}
+	return (value + alignment - 1) / alignment * alignment, true
+}
+
 func IsSameType(left *Type, right *Type) bool {
 	if left == nil || right == nil {
 		return left == right
 	}
-	if left.Kind != right.Kind || left.Name != right.Name || left.Size != right.Size || left.IsConst != right.IsConst {
+	if left.Kind != right.Kind || left.Name != right.Name || left.Size != right.Size || left.ElementCount != right.ElementCount || left.IsConst != right.IsConst {
 		return false
+	}
+	if left.Kind == TypeStruct {
+		return left.Struct == right.Struct
 	}
 	return IsSameType(left.Base, right.Base)
 }
@@ -186,10 +302,15 @@ func IsTopLevelConst(typ *Type) bool {
 	return typ != nil && typ.IsConst
 }
 
+func isAggregateType(typ *Type) bool {
+	return typ != nil && (typ.Kind == TypeArray || typ.Kind == TypeStruct)
+}
+
 var typeToValueKind = map[TypeKind]ValueKind{
 	TypeVoid: KindVoid,
 	TypeBool: KindBool,
 	TypeByte: KindByte,
+	TypeChar: KindByte,
 	TypeInt8: KindInt8, TypeInt16: KindInt16, TypeInt32: KindInt32, TypeInt64: KindInt64,
 	TypeUint8: KindUint8, TypeUint16: KindUint16, TypeUint32: KindUint32, TypeUint64: KindUint64,
 	TypeFloat32: KindFloat32, TypeFloat64: KindFloat64,
@@ -458,6 +579,15 @@ func alignUpU32(offset uint32, alignment uint32) uint32 {
 	}
 	mask := alignment - 1
 	return (offset + mask) &^ mask
+}
+
+func checkedAlignUpU32(offset uint32, alignment uint32) (uint32, bool) {
+	if alignment <= 1 {
+		return offset, true
+	}
+	mask := uint64(alignment - 1)
+	aligned := (uint64(offset) + mask) &^ mask
+	return uint32(aligned), aligned <= uint64(^uint32(0))
 }
 
 func lenU32[S ~[]E, E any](values S) uint32 {

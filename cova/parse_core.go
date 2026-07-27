@@ -9,13 +9,18 @@ type exprParser interface {
 }
 
 type parserCore struct {
-	tokens []Token
-	pos    int
-	expr   exprParser
+	tokens     []Token
+	pos        int
+	expr       exprParser
+	namedTypes map[string]*Type
 }
 
 func newParserCore(tokens []Token) parserCore {
-	return parserCore{tokens: tokens}
+	types := make(map[string]*Type, len(namedTypes))
+	for name, typ := range namedTypes {
+		types[name] = typ
+	}
+	return parserCore{tokens: tokens, namedTypes: types}
 }
 
 func (core *parserCore) parseExpression() (AstExprNode, error) {
@@ -64,6 +69,9 @@ func (core *parserCore) parseType() (*Type, error) {
 	leadingConst := core.parseConstQualifier()
 	token := core.peek()
 	typ := tokenTypes[token.Kind]
+	if typ == nil && token.Kind == TokIdent {
+		typ = core.namedTypes[token.Text]
+	}
 	if typ == nil {
 		return nil, core.errorf(token, "expected type")
 	}
@@ -91,7 +99,27 @@ func (core *parserCore) parseConstQualifier() bool {
 }
 
 func (core *parserCore) isTypeKeyword(token Token) bool {
-	return token.Kind == TokConst || tokenTypes[token.Kind] != nil
+	return token.Kind == TokConst || tokenTypes[token.Kind] != nil || token.Kind == TokIdent && core.namedTypes[token.Text] != nil
+}
+
+func (core *parserCore) parseArrayDeclarator(typ *Type) (*Type, error) {
+	for core.match(TokLBracket) {
+		countToken, err := core.expect(TokInteger)
+		if err != nil {
+			return nil, err
+		}
+		if countToken.IntValue <= 0 || uint64(countToken.IntValue) > uint64(^uint(0)>>1) {
+			return nil, core.errorf(countToken, "array element count must be a positive integer that fits int")
+		}
+		if _, err := core.expect(TokRBracket); err != nil {
+			return nil, err
+		}
+		typ, err = ArrayOf(typ, int(countToken.IntValue))
+		if err != nil {
+			return nil, core.errorf(countToken, err.Error())
+		}
+	}
+	return typ, nil
 }
 
 func (core *parserCore) parseArguments() ([]AstExprNode, error) {
@@ -159,7 +187,7 @@ func expectedTokenLabel(kind TokenKind) string {
 }
 
 var tokenTypes = map[TokenKind]*Type{
-	TokVoid: VoidType, TokBool: BoolType, TokByte: ByteType,
+	TokVoid: VoidType, TokBool: BoolType, TokByte: ByteType, TokChar: CharType,
 	TokInt: Int32Type, TokInt8: Int8Type, TokInt16: Int16Type, TokInt32: Int32Type, TokInt64: Int64Type,
 	TokUint8: Uint8Type, TokUint16: Uint16Type, TokUint32: Uint32Type, TokUint64: Uint64Type,
 	TokFloat: Float32Type, TokFloat32Type: Float32Type, TokFloat64Type: Float64Type,
