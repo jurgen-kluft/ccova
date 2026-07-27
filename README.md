@@ -6,7 +6,7 @@ The language is designed for small host-integrated scripts that work with primit
 
 ## What It Supports
 
-- Primitive types: `bool`, `byte`, `char`, `int`/`int32`, `int8`, `int16`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`
+- Primitive types: `bool`, `byte`, `int8`/`i8`, `int16`/`i16`, `int32`/`int`/`i32`, `int64`/`i64`, `uint8`/`char`/`u8`, `uint16`/`u16`, `uint32`/`u32`, `uint64`/`u64`, `float32`/`float`/`f32`, `float64`/`double`/`f64`
 - Top-level globals and named structs with naturally aligned fields
 - Fixed arrays with expression indexing and chained struct member access
 - Typed, block-scoped local variables inside functions

@@ -117,7 +117,7 @@ var (
 	Float32Type = &Type{Kind: TypeFloat32, Name: "float32", Size: 4}
 	Float64Type = &Type{Kind: TypeFloat64, Name: "float64", Size: 8}
 	StringType  = &Type{Kind: TypeString, Name: "string", Size: 4, Base: Uint8Type}
-	CharType    = &Type{Kind: TypeChar, Name: "char", Size: 1}
+	CharType    = Uint8Type
 	IntType     = Int32Type
 )
 
@@ -135,8 +135,20 @@ var namedTypes = map[string]*Type{
 	"uint16":  Uint16Type,
 	"uint32":  Uint32Type,
 	"uint64":  Uint64Type,
+	"float":   Float32Type,
 	"float32": Float32Type,
 	"float64": Float64Type,
+	"double":  Float64Type,
+	"i8":      Int8Type,
+	"i16":     Int16Type,
+	"i32":     Int32Type,
+	"i64":     Int64Type,
+	"u8":      Uint8Type,
+	"u16":     Uint16Type,
+	"u32":     Uint32Type,
+	"u64":     Uint64Type,
+	"f32":     Float32Type,
+	"f64":     Float64Type,
 }
 
 func LookupNamedType(name string) *Type {

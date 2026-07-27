@@ -214,6 +214,61 @@ func TestLookupNamedTypeIntAlias(t *testing.T) {
 	}
 }
 
+func TestParsePrimitiveTypeAliases(t *testing.T) {
+	program := parseProgram(t, `
+i8 signed8;
+i16 signed16;
+i32 signed32;
+i64 signed64;
+u8 unsigned8;
+u16 unsigned16;
+u32 unsigned32;
+u64 unsigned64;
+f32 float32_value;
+f64 float64_value;
+float float_value;
+double double_value;
+char character;
+
+void script_main() {
+	return;
+}
+`)
+
+	expected := []*Type{
+		Int8Type, Int16Type, Int32Type, Int64Type,
+		Uint8Type, Uint16Type, Uint32Type, Uint64Type,
+		Float32Type, Float64Type, Float32Type, Float64Type, Uint8Type,
+	}
+	if len(program.Decls) != len(expected) {
+		t.Fatalf("expected %d declarations, got %d", len(expected), len(program.Decls))
+	}
+	for index, want := range expected {
+		if got := program.Decls[index].Type; got != want {
+			t.Fatalf("declaration %d: expected type %v, got %v", index, want, got)
+		}
+	}
+}
+
+func TestLookupNamedTypeAliases(t *testing.T) {
+	expected := map[string]*Type{
+		"char": Uint8Type,
+		"float": Float32Type,
+		"double": Float64Type,
+		"i8": Int8Type, "i16": Int16Type, "i32": Int32Type, "i64": Int64Type,
+		"u8": Uint8Type, "u16": Uint16Type, "u32": Uint32Type, "u64": Uint64Type,
+		"f32": Float32Type, "f64": Float64Type,
+	}
+	for name, want := range expected {
+		if got := LookupNamedType(name); got != want {
+			t.Fatalf("expected %s to alias %v, got %v", name, want, got)
+		}
+	}
+	if CharType != Uint8Type {
+		t.Fatalf("expected CharType to alias Uint8Type")
+	}
+}
+
 func TestStructTypePreservesNaturalLayoutAndNamedFields(t *testing.T) {
 	typ, err := NewStructType("sample_t", []StructField{
 		{Name: "first", Type: Uint8Type},
@@ -265,7 +320,7 @@ int script_main() {
 		t.Fatalf("unexpected home layout: kind=%d size=%d alignment=%d", homeType.Kind, homeType.Size, homeType.Alignment())
 	}
 	dateField := homeType.Struct.Fields[0]
-	if dateField.Type.Kind != TypeArray || dateField.Type.Base != CharType || dateField.Type.ElementCount != 16 {
+	if dateField.Type.Kind != TypeArray || dateField.Type.Base != Uint8Type || dateField.Type.ElementCount != 16 {
 		t.Fatalf("unexpected date field type: %#v", dateField.Type)
 	}
 	if len(program.Decls) != 1 || program.Decls[0].Index != -1 || program.Decls[0].Type != homeType {

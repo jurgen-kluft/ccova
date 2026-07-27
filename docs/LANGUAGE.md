@@ -82,7 +82,10 @@ type           ::= const_qualifier? named_type const_qualifier? ("*" const_quali
 named_type     ::= ident | "void" | "bool" | "byte" | "char" | "int" |
                    "int8" | "int16" | "int32" | "int64" |
                    "uint8" | "uint16" | "uint32" | "uint64" |
-                   "float32" | "float64"
+                   "float" | "float32" | "float64" |
+                   "i8" | "i16" | "i32" | "i64" |
+                   "u8" | "u16" | "u32" | "u64" |
+                   "f32" | "f64" | "double"
 
 block          ::= "{" stmt* "}"
 stmt           ::= block
@@ -302,6 +305,7 @@ Supported type names:
 - `void`
 - `bool`
 - `byte`
+- `char`
 - `int`
 - `int8`
 - `int16`
@@ -311,14 +315,36 @@ Supported type names:
 - `uint16`
 - `uint32`
 - `uint64`
+- `float`
 - `float32`
 - `float64`
+- `double`
+- `i8`
+- `i16`
+- `i32`
+- `i64`
+- `u8`
+- `u16`
+- `u32`
+- `u64`
+- `f32`
+- `f64`
 
 ### Type aliases
 
-`int` is an alias for `int32`.
+The following reserved type names are aliases:
 
-Use `float32` and `float64` explicitly. Although `float` is tokenized as a keyword, it is not currently resolved as a valid named type.
+- `char` is an alias for `uint8`
+- `int` and `i32` are aliases for `int32`
+- `i8`, `i16`, and `i64` are aliases for `int8`, `int16`, and `int64`
+- `u8`, `u16`, `u32`, and `u64` are aliases for `uint8`, `uint16`, `uint32`, and `uint64`
+- `float` and `f32` are aliases for `float32`
+- `double` and `f64` are aliases for `float64`
+
+Aliases have the same type identity as their canonical types. Diagnostics use the canonical names.
+
+`float`, `float32`, and `f32` have identical type identity and behavior.
+`double`, `float64`, and `f64` likewise have identical type identity and behavior.
 
 ## String Literals
 
@@ -341,7 +367,7 @@ Current behavior:
 - Only globals whose top-level type is const are stored in CONST.
 - Mutable globals with initializers are stored in DATA.
 - Zero-initialized globals remain in BSS.
-- String literals are assignable only to pointer targets whose pointee type is `const uint8`, such as `const uint8*` or `const uint8* const`.
+- String literals are assignable only to pointer targets whose pointee type is `const uint8`. Because `char` aliases `uint8`, this includes `const uint8*`, `const char*`, and their const-pointer forms.
 
 ## Literals
 
@@ -769,7 +795,7 @@ for (int i = 0; i < 4; i = i + 1) {
 
 ### Float type spelling
 
-Use `float32` or `float64`. Do not use `float`.
+Use `float`, `float32`, or `f32` for 32-bit floating-point values. Use `double`, `float64`, or `f64` for 64-bit floating-point values.
 
 ## Minimal Working Examples
 

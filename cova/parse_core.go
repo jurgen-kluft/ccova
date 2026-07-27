@@ -191,4 +191,7 @@ var tokenTypes = map[TokenKind]*Type{
 	TokInt: Int32Type, TokInt8: Int8Type, TokInt16: Int16Type, TokInt32: Int32Type, TokInt64: Int64Type,
 	TokUint8: Uint8Type, TokUint16: Uint16Type, TokUint32: Uint32Type, TokUint64: Uint64Type,
 	TokFloat: Float32Type, TokFloat32Type: Float32Type, TokFloat64Type: Float64Type,
+	TokI8: Int8Type, TokI16: Int16Type, TokI32: Int32Type, TokI64: Int64Type,
+	TokU8: Uint8Type, TokU16: Uint16Type, TokU32: Uint32Type, TokU64: Uint64Type,
+	TokF32: Float32Type, TokF64: Float64Type, TokDouble: Float64Type,
 }

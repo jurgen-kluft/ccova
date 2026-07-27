@@ -101,6 +101,18 @@ const (
 	TokQuestion
 	TokHash
 	TokHashHash
+
+	TokI8
+	TokI16
+	TokI32
+	TokI64
+	TokU8
+	TokU16
+	TokU32
+	TokU64
+	TokF32
+	TokF64
+	TokDouble
 )
 
 type Token struct {
@@ -123,6 +135,9 @@ var keywords = map[string]TokenKind{
 	"int64": TokInt64, "return": TokReturn, "switch": TokSwitch, "true": TokTrue,
 	"uint8": TokUint8, "uint16": TokUint16, "uint32": TokUint32, "uint64": TokUint64,
 	"void": TokVoid, "while": TokWhile, "int": TokInt, "float": TokFloat,
+	"i8": TokI8, "i16": TokI16, "i32": TokI32, "i64": TokI64,
+	"u8": TokU8, "u16": TokU16, "u32": TokU32, "u64": TokU64,
+	"f32": TokF32, "f64": TokF64, "double": TokDouble,
 }
 
 func Tokenize(src string) ([]Token, error) {

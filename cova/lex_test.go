@@ -117,6 +117,23 @@ func TestTokenizeControlFlowKeywords(t *testing.T) {
 	}
 }
 
+func TestTokenizeTypeAliasKeywords(t *testing.T) {
+	src := "i8 i16 i32 i64 u8 u16 u32 u64 float f32 f64 double"
+	tokens, err := Tokenize(src)
+	if err != nil {
+		t.Fatalf("Tokenize failed: %v", err)
+	}
+	expected := []TokenKind{TokI8, TokI16, TokI32, TokI64, TokU8, TokU16, TokU32, TokU64, TokFloat, TokF32, TokF64, TokDouble}
+	if len(tokens) != len(expected)+1 {
+		t.Fatalf("expected %d tokens plus eof, got %d", len(expected), len(tokens))
+	}
+	for index, want := range expected {
+		if tokens[index].Kind != want {
+			t.Fatalf("expected token %d to have kind %d, got %d", index, want, tokens[index].Kind)
+		}
+	}
+}
+
 func TestTokenizeConstKeyword(t *testing.T) {
 	src := "const"
 	tokens, err := Tokenize(src)

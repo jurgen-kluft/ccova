@@ -266,6 +266,41 @@ void script_main() {
 	}
 }
 
+func TestRunPassesStringLiteralToConstCharPointer(t *testing.T) {
+	received := Address(0)
+	script := `
+extern(0) void inspect(const char* path);
+
+void script_main() {
+	inspect("asset/button_off");
+	return;
+}
+`
+
+	linked := mustLinkProgram(t, script, 0, 1)
+	vm := NewVM(testFrameCapacityBytes)
+	vm.RegisterExternDispatcher(0, func(_ uintptr, vm *VM, importID uint32) VMStatus {
+		if importID != 0 {
+			t.Fatalf("expected import id 0, got %d", importID)
+		}
+		bits, status := vm.PopBits(KindAddress)
+		if status != VMStatusOK {
+			return status
+		}
+		received = Address(uint32(bits))
+		return VMStatusOK
+	})
+	if status := vm.Run(linked); status != VMStatusOK {
+		t.Fatalf("Run failed: %s", status)
+	}
+	if received.Segment() != segmentConst {
+		t.Fatalf("expected const segment address, got %s", received.Segment())
+	}
+	if got := readCString(vm.memory.segment[segmentConst], received.Index()); got != "asset/button_off" {
+		t.Fatalf("expected const string %q, got %q", "asset/button_off", got)
+	}
+}
+
 func TestRunLoadsGlobalPointerInitializerFromData(t *testing.T) {
 	received := Address(0)
 	script := `
