@@ -371,16 +371,44 @@ type BuiltInOperation byte
 
 const (
 	BuiltInOperationInvalid BuiltInOperation = iota
-	BuiltInAbs
-	BuiltInSin
-	BuiltInCos
-	BuiltInTan
-	BuiltInAsin
-	BuiltInAcos
-	BuiltInAtan
-	BuiltInPow
-	BuiltInSqrt
+	BuiltInAbs                               // math.abs(a)
+	BuiltInSin                               // math.sin(a)
+	BuiltInCos                               // math.cos(a)
+	BuiltInTan                               // math.tan(a)
+	BuiltInAsin                              // math.asin(a)
+	BuiltInAcos                              // math.acos(a)
+	BuiltInAtan                              // math.atan(a)
+	BuiltInPow                               // math.pow(a, b)
+	BuiltInSqrt                              // math.sqrt(a)
+	BuiltInMin                               // math.min(a,b)
+	BuiltInMax                               // math.max(a,b)
+	BuiltInMap                               // math.map(value, inMin, inMax, outMin, outMax)
+	BuiltInRandom                            // math.random() -> int32
+	BuiltInClamp                             // math.clamp(value, min, max)
+	BuiltInSmoothStep                        // math.smoothstep(edge0, edge1, x, resolution)
+	BuiltInInterpolate                       // math.interpolate(a, b, t)
+	BuiltInLerp                              // math.lerp(a, b, t)
+	BuiltInSlerp                             // math.slerp(a, b, t)
 )
+
+func builtInNumArgs(operation BuiltInOperation) int {
+	switch operation {
+	case BuiltInAbs, BuiltInSin, BuiltInCos, BuiltInTan, BuiltInAsin, BuiltInAcos, BuiltInAtan, BuiltInSqrt:
+		return 1
+	case BuiltInPow, BuiltInMin, BuiltInMax:
+		return 2
+	case BuiltInClamp, BuiltInInterpolate, BuiltInLerp, BuiltInSlerp:
+		return 3
+	case BuiltInSmoothStep:
+		return 4
+	case BuiltInMap:
+		return 5
+	case BuiltInRandom:
+		return 0
+	default:
+		return 0
+	}
+}
 
 func makeBuiltInFunction(operation BuiltInOperation, kind ValueKind) BuiltInFunction {
 	return BuiltInFunction(uint16(operation&0x7f)<<4 | uint16(kind&0x0f))

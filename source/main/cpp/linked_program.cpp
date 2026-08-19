@@ -2,6 +2,21 @@
 
 namespace ncore
 {
+    static void static_validate_linked_program()
+    {
+        ASSERTCTS(sizeof(relative_ptr_t<byte>) == 4, "relative pointer ABI must be 32-bit");
+        ASSERTCTS(sizeof(relative_array_t<byte>) == 8, "relative array ABI must be 8 bytes");
+        ASSERTCTS(sizeof(linked_program_t) == 72, "linked program must match the image root ABI");
+        ASSERTCTS(__builtin_offsetof(relative_array_t<byte>, m_data) == 0, "relative array data ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(relative_array_t<byte>, m_size) == 4, "relative array size ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(linked_program_t, m_functions) == 24, "program functions ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(linked_program_t, m_param_kinds) == 32, "program parameter kinds ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(linked_program_t, m_param_offsets) == 40, "program parameter offsets ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(linked_program_t, m_text) == 48, "program text ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(linked_program_t, m_const_data) == 56, "program const data ABI mismatch");
+        ASSERTCTS(__builtin_offsetof(linked_program_t, m_data_data) == 64, "program data ABI mismatch");
+    }
+
     template <typename T> static void validate_array(const relative_array_t<T>& array)
     {
         ASSERT(array.m_data.get() != nullptr || array.m_size == 0);
@@ -68,6 +83,7 @@ namespace ncore
         ASSERT(program->m_version == ProgramImageVersion);
         ASSERT(program->m_endian == ProgramImageEndianLittle);
         ASSERT(program->m_abi == ProgramImageABI);
+        static_validate_linked_program();
         validate_program_contents(program);
     }
 

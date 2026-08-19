@@ -2,6 +2,8 @@ package cova
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 
 	"github.com/jurgen-kluft/go-datastream/codestream"
 )
@@ -91,16 +93,28 @@ func imageUint32FromInt(value int) (uint32, bool) {
 
 func encodeProgramImage(image *ProgramImage) ([]byte, error) {
 	var buffer bytes.Buffer
-	if err := codestream.WriteToStream(&buffer, image); err != nil {
-		return nil, err
+	options := codestream.Options{PointerIs64Bit: false, Endian: binary.LittleEndian, Verbose: false}
+	stream := codestream.NewCodeStream(options)
+	if !stream.WriteStream(&buffer, image) {
+		var descr string
+		for _, issue := range stream.Issues() {
+			descr = descr + issue.String() + "\n"
+		}
+		return nil, errors.New(descr)
 	}
 	return buffer.Bytes(), nil
 }
 
 func decodeProgramImage(blob []byte) (*ProgramImage, error) {
 	image := &ProgramImage{}
-	if err := codestream.ReadFromStream(bytes.NewReader(blob), image); err != nil {
-		return nil, err
+	options := codestream.Options{PointerIs64Bit: false, Endian: binary.LittleEndian, Verbose: false}
+	stream := codestream.NewCodeStream(options)
+	if !stream.ReadStream(bytes.NewReader(blob), image) {
+		var descr string
+		for _, issue := range stream.Issues() {
+			descr = descr + issue.String() + "\n"
+		}
+		return nil, errors.New(descr)
 	}
 	return image, nil
 }

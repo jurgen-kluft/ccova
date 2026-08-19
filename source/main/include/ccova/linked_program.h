@@ -76,18 +76,6 @@ namespace ncore
 
     void validate_linked_program(const linked_program_t* program);
     void validate_linked_program(const linked_program_t* program, u32 block_size);
-
-    ASSERTCTS(sizeof(relative_ptr_t<byte>) == 4, "relative pointer ABI must be 32-bit");
-    ASSERTCTS(sizeof(relative_array_t<byte>) == 8, "relative array ABI must be 8 bytes");
-    ASSERTCTS(sizeof(linked_program_t) == 72, "linked program must match the image root ABI");
-    static_assert(__builtin_offsetof(relative_array_t<byte>, m_data) == 0, "relative array data ABI mismatch");
-    static_assert(__builtin_offsetof(relative_array_t<byte>, m_size) == 4, "relative array size ABI mismatch");
-    static_assert(__builtin_offsetof(linked_program_t, m_functions) == 24, "program functions ABI mismatch");
-    static_assert(__builtin_offsetof(linked_program_t, m_param_kinds) == 32, "program parameter kinds ABI mismatch");
-    static_assert(__builtin_offsetof(linked_program_t, m_param_offsets) == 40, "program parameter offsets ABI mismatch");
-    static_assert(__builtin_offsetof(linked_program_t, m_text) == 48, "program text ABI mismatch");
-    static_assert(__builtin_offsetof(linked_program_t, m_const_data) == 56, "program const data ABI mismatch");
-    static_assert(__builtin_offsetof(linked_program_t, m_data_data) == 64, "program data ABI mismatch");
 } // namespace ncore
 
 #endif

@@ -23,6 +23,7 @@
 
 - math
   - `math_min`, `math_max`
+  - `math_map`
   - `math_random`
   - `math_clamp`
   - `math_smoothstep`

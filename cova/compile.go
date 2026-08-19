@@ -770,55 +770,132 @@ func (fc *functionCompiler) compileExprAs(expr AstExprNode, expected *Type) {
 
 func lookupBuiltInOperation(name string) (BuiltInOperation, bool) {
 	switch name {
-	case "abs":
+	case "math.abs":
 		return BuiltInAbs, true
-	case "sin":
+	case "math.sin":
 		return BuiltInSin, true
-	case "cos":
+	case "math.cos":
 		return BuiltInCos, true
-	case "tan":
+	case "math.tan":
 		return BuiltInTan, true
-	case "asin":
+	case "math.asin":
 		return BuiltInAsin, true
-	case "acos":
+	case "math.acos":
 		return BuiltInAcos, true
-	case "atan":
+	case "math.atan":
 		return BuiltInAtan, true
-	case "pow":
+	case "math.pow":
 		return BuiltInPow, true
-	case "sqrt":
+	case "math.sqrt":
 		return BuiltInSqrt, true
+	case "math.min":
+		return BuiltInMin, true
+	case "math.max":
+		return BuiltInMax, true
+	case "math.map":
+		return BuiltInMap, true
+	case "math.random":
+		return BuiltInRandom, true
+	case "math.clamp":
+		return BuiltInClamp, true
+	case "math.smoothStep":
+		return BuiltInSmoothStep, true
+	case "math.interpolate":
+		return BuiltInInterpolate, true
+	case "math.lerp":
+		return BuiltInLerp, true
+	case "math.slerp":
+		return BuiltInSlerp, true
+
 	default:
 		return BuiltInOperationInvalid, false
 	}
 }
 
+func (fc *functionCompiler) determineBuiltInResultType(operation BuiltInOperation, call *AstCallExpr) *Type {
+
+	// BuiltInAbs  math.abs(a)
+	// - result type is determined by the a argument
+	// BuiltInSin  math.sin(a)
+	// - result type is determined by the a argument
+	// BuiltInCos  math.cos(a)
+	// - result type is determined by the a argument
+	// BuiltInTan  math.tan(a)
+	// - result type is determined by the a argument
+	// BuiltInAsin math.asin(a)
+	// - result type is determined by the a argument
+	// BuiltInAcos math.acos(a)
+	// - result type is determined by the a argument
+	// BuiltInAtan math.atan(a)
+	// - result type is determined by the a argument
+	// BuiltInPow  math.pow(a, b)
+	// - a and b need to be of the same type
+	// BuiltInSqrt math.sqrt(a)
+	// - result type is determined by the a argument
+
+	// BuiltInMin           math.min(a,b)
+	// - a and b need to be of the same type
+	// - result type is determined by the a argument
+	// BuiltInMax           math.max(a,b)
+	// - a and b need to be of the same type
+	// - result type is determined by the a argument
+	// BuiltInMap           math.map(value, inMin, inMax, outMin, outMax)
+	// - inMin and inMax must be of the same type, and outMin and outMax must be of the same type.
+	// - result type is determined by the outMin argument
+	// BuiltInRandom        math.random() = result is always int32
+	// BuiltInClamp         math.clamp(value, min, max)
+	// - value, min, and max must be of the same type
+	// - result type is determined by the value argument
+	// BuiltInSmoothStep    math.smoothstep(edge0, edge1, x)
+	// - edge0, edge1, and x must be of the same type
+	// - result type is determined by the x argument
+	// BuiltInInterpolate   math.interpolate(a, b, t, resolution)
+	// - a, b, t, and resolution must be of the same type
+	// - result type is determined by the a argument
+	// BuiltInLerp          math.lerp(a, b, t, resolution)
+	// - a, b, t, and resolution must be of the same type
+	// - result type is determined by the a argument
+	// BuiltInSlerp         math.slerp(a, b, t, resolution)
+	// - a, b, t, and resolution must be of the same type
+	// - result type is determined by the a argument
+
+	return nil
+}
+
 func (fc *functionCompiler) builtInResultType(call *AstCallExpr, operation BuiltInOperation) *Type {
-	if operation == BuiltInPow {
-		if len(call.Args) != 2 {
-			return nil
-		}
-		result := promoteNumericType(fc.exprType(call.Args[0]), fc.exprType(call.Args[1]))
-		if isIntegerKind(valueKindFromType(result)) {
-			return Float64Type
-		}
-		return result
-	}
-	if len(call.Args) != 1 {
+	expectedArgs := builtInNumArgs(operation)
+	if len(call.Args) != expectedArgs {
 		return nil
 	}
-	result := fc.exprType(call.Args[0])
-	if operation != BuiltInAbs && valueKindFromType(result) != KindFloat32 {
-		return Float64Type
-	}
-	return result
+
+	// if operation == BuiltInPow {
+	// 	result := promoteNumericType(fc.exprType(call.Args[0]), fc.exprType(call.Args[1]))
+	// 	if isIntegerKind(valueKindFromType(result)) {
+	// 		return Float32Type
+	// 	}
+	// 	return result
+	// }
+
+	// Math Built-In functions have many different number of arguments, during execution the vm will
+	// have to figure out that if a math function supports float32 and float64, and if any of the arguments
+	// are 64-bit, then the result will be 64-bit, otherwise, the result will be 32-bit.
+	// For other built-in functions, the result type is determined by the first argument's type.
+
+	// if len(call.Args) != 1 {
+	// 	return nil
+	// }
+	// result := fc.exprType(call.Args[0])
+	// if operation != BuiltInAbs && valueKindFromType(result) != KindFloat32 {
+	// 	return Float32Type
+	// }
+
+	return fc.determineBuiltInResultType(operation, call)
 }
 
 func (fc *functionCompiler) compileBuiltInCall(call *AstCallExpr, operation BuiltInOperation, expectedKind ValueKind) {
-	wantArgs := 1
-	if operation == BuiltInPow {
-		wantArgs = 2
-	}
+
+	wantArgs := builtInNumArgs(operation)
+
 	if len(call.Args) != wantArgs {
 		fc.fail(fmt.Errorf("compile error on line %d: built-in function %q expects %d arguments, got %d", call.Line, call.Callee, wantArgs, len(call.Args)))
 		return
