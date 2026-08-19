@@ -386,9 +386,9 @@ const (
 	BuiltInRandom                            // math.random() -> int32
 	BuiltInClamp                             // math.clamp(value, min, max)
 	BuiltInSmoothStep                        // math.smoothstep(edge0, edge1, x, resolution)
-	BuiltInInterpolate                       // math.interpolate(a, b, t)
-	BuiltInLerp                              // math.lerp(a, b, t)
-	BuiltInSlerp                             // math.slerp(a, b, t)
+	BuiltInInterpolate                       // math.interpolate(a, b, t, resolution)
+	BuiltInLerp                              // math.lerp(a, b, t, resolution)
+	BuiltInSlerp                             // math.slerp(a, b, t, resolution)
 )
 
 func builtInNumArgs(operation BuiltInOperation) int {
@@ -397,9 +397,9 @@ func builtInNumArgs(operation BuiltInOperation) int {
 		return 1
 	case BuiltInPow, BuiltInMin, BuiltInMax:
 		return 2
-	case BuiltInClamp, BuiltInInterpolate, BuiltInLerp, BuiltInSlerp:
+	case BuiltInClamp:
 		return 3
-	case BuiltInSmoothStep:
+	case BuiltInSmoothStep, BuiltInInterpolate, BuiltInLerp, BuiltInSlerp:
 		return 4
 	case BuiltInMap:
 		return 5

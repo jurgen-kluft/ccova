@@ -815,47 +815,89 @@ func lookupBuiltInOperation(name string) (BuiltInOperation, bool) {
 func (fc *functionCompiler) determineBuiltInResultType(operation BuiltInOperation, call *AstCallExpr) *Type {
 
 	// BuiltInAbs  math.abs(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInSin  math.sin(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInCos  math.cos(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInTan  math.tan(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInAsin math.asin(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInAcos math.acos(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInAtan math.atan(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 	// BuiltInPow  math.pow(a, b)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - a and b need to be of the same type
 	// BuiltInSqrt math.sqrt(a)
+	// - there will be 2 different implementation in the vm runtime:
+	//   - float32, float64
 	// - result type is determined by the a argument
 
 	// BuiltInMin           math.min(a,b)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - a and b need to be of the same type
 	// - result type is determined by the a argument
 	// BuiltInMax           math.max(a,b)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - a and b need to be of the same type
 	// - result type is determined by the a argument
 	// BuiltInMap           math.map(value, inMin, inMax, outMin, outMax)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - inMin and inMax must be of the same type, and outMin and outMax must be of the same type.
 	// - result type is determined by the outMin argument
 	// BuiltInRandom        math.random() = result is always int32
 	// BuiltInClamp         math.clamp(value, min, max)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - value, min, and max must be of the same type
 	// - result type is determined by the value argument
 	// BuiltInSmoothStep    math.smoothstep(edge0, edge1, x)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - edge0, edge1, and x must be of the same type
 	// - result type is determined by the x argument
 	// BuiltInInterpolate   math.interpolate(a, b, t, resolution)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - a, b, t, and resolution must be of the same type
 	// - result type is determined by the a argument
 	// BuiltInLerp          math.lerp(a, b, t, resolution)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - a, b, t, and resolution must be of the same type
 	// - result type is determined by the a argument
 	// BuiltInSlerp         math.slerp(a, b, t, resolution)
+	// - there will be 4 different implementation in the vm runtime:
+	//   - int32, int64
+	//   - float32, float64
 	// - a, b, t, and resolution must be of the same type
 	// - result type is determined by the a argument
 

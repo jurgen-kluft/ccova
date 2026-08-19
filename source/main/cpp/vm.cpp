@@ -402,6 +402,11 @@ namespace ncore
             execute_builtin_abs(vm, kind);
             return;
         }
+
+        // TODO; Handle all of the math builtins correctly, since we should actually handle
+        //       dealing with function arguments correctly. 
+        //       Not all have to be float32 or float64.
+
         ASSERT(kind == KindFloat32 || kind == KindFloat64);
         if (operation == BuiltInPow)
         {
