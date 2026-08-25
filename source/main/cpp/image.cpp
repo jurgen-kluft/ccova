@@ -3,19 +3,6 @@
 
 namespace ncore
 {
-    const linked_program_t* open_program_image(const byte* block, u32 block_size)
-    {
-        ASSERT(block != nullptr);
-        ASSERT(block_size >= ProgramImageHeaderSize);
-        ASSERT(((uint_t)block & 3U) == 0);
-
-        static_validate();
-
-        const linked_program_t* program = (const linked_program_t*)block;
-        validate_linked_program(program, block_size);
-        return program;
-    }
-
     static void static_validate()
     {
         ASSERTS(sizeof(script_function_t) == ProgramImageFunctionSize, "script function must match the image ABI");
@@ -36,4 +23,18 @@ namespace ncore
         ASSERTS(CC_OFFSETOF(linked_program_t, m_const_data) == 56, "program const data ABI mismatch");
         ASSERTS(CC_OFFSETOF(linked_program_t, m_data_data) == 64, "program data ABI mismatch");
     }
+
+    const linked_program_t* open_program_image(const byte* block, u32 block_size)
+    {
+        ASSERT(block != nullptr);
+        ASSERT(block_size >= ProgramImageHeaderSize);
+        ASSERT(((uint_t)block & 3U) == 0);
+
+        static_validate();
+
+        const linked_program_t* program = (const linked_program_t*)block;
+        validate_linked_program(program, block_size);
+        return program;
+    }
+
 } // namespace ncore

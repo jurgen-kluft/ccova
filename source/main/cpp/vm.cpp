@@ -428,20 +428,22 @@ namespace ncore
         {
 
             // TODO
-
         }
         else if (kind == KindFloat32)
         {
             const f32 value  = bits_to_f32((u32)pop_bits(vm, kind));
-            f32 result = 0.0f;
+            f32       result = 0.0f;
             switch (operation)
             {
+                case BuiltInOperationInvalid: ASSERT(false); break;
+                case BuiltInAbs: result = std::fabs(value); break;
                 case BuiltInSin: result = std::sin(value); break;
                 case BuiltInCos: result = std::cos(value); break;
                 case BuiltInTan: result = std::tan(value); break;
                 case BuiltInAsin: result = std::asin(value); break;
                 case BuiltInAcos: result = std::acos(value); break;
                 case BuiltInAtan: result = std::atan(value); break;
+                case BuiltInPow: /* TODO */ break;
                 case BuiltInSqrt: result = std::sqrt(value); break;
                 case BuiltInMin:
                 {
@@ -461,9 +463,15 @@ namespace ncore
                     const f32 out_min = bits_to_f32((u32)pop_bits(vm, kind));
                     const f32 in_max  = bits_to_f32((u32)pop_bits(vm, kind));
                     const f32 in_min  = bits_to_f32((u32)pop_bits(vm, kind));
-                    const f32 v             = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 v       = bits_to_f32((u32)pop_bits(vm, kind));
                     ASSERT(in_max != in_min);
                     result = (v - in_min) / (in_max - in_min) * (out_max - out_min) + out_min;
+                    break;
+                }
+                case BuiltInRandom:
+                {
+                    // TODO
+
                     break;
                 }
                 case BuiltInClamp:
@@ -516,17 +524,57 @@ namespace ncore
         }
         else
         {
+            // Note: Values pop in reverse order!
             const f64 value  = bits_to_f64(pop_bits(vm, kind));
             f64       result = 0.0;
             switch (operation)
             {
+                case BuiltInOperationInvalid: ASSERT(false); break;
+                case BuiltInAbs: result = std::fabs(value); break;
                 case BuiltInSin: result = std::sin(value); break;
                 case BuiltInCos: result = std::cos(value); break;
                 case BuiltInTan: result = std::tan(value); break;
                 case BuiltInAsin: result = std::asin(value); break;
                 case BuiltInAcos: result = std::acos(value); break;
                 case BuiltInAtan: result = std::atan(value); break;
+
+                case BuiltInPow:
+                { // TODO
+                    break;
+                }
                 case BuiltInSqrt: result = std::sqrt(value); break;
+                case BuiltInMin:
+                { // TODO
+                    break;
+                }
+                case BuiltInMax:
+                { // TODO
+                    break;
+                }
+                case BuiltInMap:
+                { // TODO
+                    break;
+                }
+                case BuiltInRandom:
+                { // TODO
+                    break;
+                }
+                case BuiltInClamp:
+                { // TODO
+                    break;
+                }
+                case BuiltInSmoothStep:
+                { // TODO
+                    break;
+                }
+                case BuiltInLerp:
+                { // TODO
+                    break;
+                }
+                case BuiltInSlerp:
+                { // TODO
+                    break;
+                }
             }
             push_bits(vm, kind, f64_to_bits(result));
         }
