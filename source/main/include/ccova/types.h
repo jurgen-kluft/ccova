@@ -29,15 +29,23 @@ namespace ncore
     enum ebuiltinoperation_t : u8
     {
         BuiltInOperationInvalid = 0,
-        BuiltInAbs,
-        BuiltInSin,
-        BuiltInCos,
-        BuiltInTan,
-        BuiltInAsin,
-        BuiltInAcos,
-        BuiltInAtan,
-        BuiltInPow,
-        BuiltInSqrt,
+        BuiltInAbs,         // math.abs(value)
+        BuiltInSin,         // math.sin(value)
+        BuiltInCos,         // math.cos(value)
+        BuiltInTan,         // math.tan(value)
+        BuiltInAsin,        // math.asin(value)
+        BuiltInAcos,        // math.acos(value)
+        BuiltInAtan,        // math.atan(value)
+        BuiltInPow,         // math.pow(base, exponent)
+        BuiltInSqrt,        // math.sqrt(value)
+        BuiltInMin,         // math.min(a,b)
+        BuiltInMax,         // math.max(a,b)
+        BuiltInMap,         // math.map(value, inMin, inMax, outMin, outMax)
+        BuiltInRandom,      // math.random() -> int32
+        BuiltInClamp,       // math.clamp(value, min, max)
+        BuiltInSmoothStep,  // math.smoothstep(edge0, edge1, x, resolution)
+        BuiltInLerp,        // math.lerp(a, b, t, resolution)
+        BuiltInSlerp,       // math.slerp(a, b, t, resolution)
     };
 
     enum earithmeticop_t : u8

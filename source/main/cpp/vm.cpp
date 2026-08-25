@@ -317,7 +317,7 @@ namespace ncore
                 const u32 shift = (u32)(unsigned_right & (sizeof(T) * 8 - 1));
                 if (!is_signed || left >= 0 || shift == 0)
                     return (U)(unsigned_left >> shift);
-                return (U)((unsigned_left >> shift) | ((U)~(U)0 << (sizeof(T) * 8 - shift)));
+                return (U)((unsigned_left >> shift) | ((U) ~(U)0 << (sizeof(T) * 8 - shift)));
             }
             default: ASSERT(false); return 0;
         }
@@ -357,21 +357,6 @@ namespace ncore
         }
     }
 
-    static f64 execute_builtin_unary(f64 value, ebuiltinoperation_t operation)
-    {
-        switch (operation)
-        {
-            case BuiltInSin: return std::sin(value);
-            case BuiltInCos: return std::cos(value);
-            case BuiltInTan: return std::tan(value);
-            case BuiltInAsin: return std::asin(value);
-            case BuiltInAcos: return std::acos(value);
-            case BuiltInAtan: return std::atan(value);
-            case BuiltInSqrt: return std::sqrt(value);
-            default: ASSERT(false); return 0.0;
-        }
-    }
-
     static void execute_builtin_abs(vm_t* vm, evaluekind_t kind)
     {
         u64 bits = pop_bits(vm, kind);
@@ -382,10 +367,22 @@ namespace ncore
             case KindUint16:
             case KindUint32:
             case KindUint64: break;
-            case KindInt8: if ((bits & 0x80U) != 0) bits = (u8)(0U - (u8)bits); break;
-            case KindInt16: if ((bits & 0x8000U) != 0) bits = (u16)(0U - (u16)bits); break;
-            case KindInt32: if ((bits & 0x80000000U) != 0) bits = (u32)(0U - (u32)bits); break;
-            case KindInt64: if ((bits & 0x8000000000000000ULL) != 0) bits = 0ULL - bits; break;
+            case KindInt8:
+                if ((bits & 0x80U) != 0)
+                    bits = (u8)(0U - (u8)bits);
+                break;
+            case KindInt16:
+                if ((bits & 0x8000U) != 0)
+                    bits = (u16)(0U - (u16)bits);
+                break;
+            case KindInt32:
+                if ((bits & 0x80000000U) != 0)
+                    bits = (u32)(0U - (u32)bits);
+                break;
+            case KindInt64:
+                if ((bits & 0x8000000000000000ULL) != 0)
+                    bits = 0ULL - bits;
+                break;
             case KindFloat32: bits = f32_to_bits((f32)std::fabs((f64)bits_to_f32((u32)bits))); break;
             case KindFloat64: bits = f64_to_bits(std::fabs(bits_to_f64(bits))); break;
             default: ASSERT(false); return;
@@ -400,16 +397,20 @@ namespace ncore
         if (operation == BuiltInAbs)
         {
             execute_builtin_abs(vm, kind);
-            return;
         }
-
-        // TODO; Handle all of the math builtins correctly, since we should actually handle
-        //       dealing with function arguments correctly. 
-        //       Not all have to be float32 or float64.
-
-        ASSERT(kind == KindFloat32 || kind == KindFloat64);
-        if (operation == BuiltInPow)
+        else if (operation == BuiltInRandom)
         {
+            ASSERT(kind == KindInt32);
+            // TODO; a random number generator (simple xor shift?)
+            const u32 random_value = (u32)0;
+            push_bits(vm, kind, random_value);
+        }
+        else if (operation == BuiltInPow)
+        {
+            // TODO; Handle all of the math builtins correctly, since we should actually handle
+            //       dealing with function arguments correctly.
+            //       Not all have to be float32 or float64.
+            ASSERT(kind == KindFloat32 || kind == KindFloat64);
             if (kind == KindFloat32)
             {
                 const f32 exponent = bits_to_f32((u32)pop_bits(vm, kind));
@@ -422,17 +423,112 @@ namespace ncore
                 const f64 base     = bits_to_f64(pop_bits(vm, kind));
                 push_bits(vm, kind, f64_to_bits(std::pow(base, exponent)));
             }
-            return;
         }
-        if (kind == KindFloat32)
+        else if (kind == KindInt32)
         {
-            const f32 value = bits_to_f32((u32)pop_bits(vm, kind));
-            push_bits(vm, kind, f32_to_bits((f32)execute_builtin_unary((f64)value, operation)));
+
+            // TODO
+
+        }
+        else if (kind == KindFloat32)
+        {
+            const f32 value  = bits_to_f32((u32)pop_bits(vm, kind));
+            f32 result = 0.0f;
+            switch (operation)
+            {
+                case BuiltInSin: result = std::sin(value); break;
+                case BuiltInCos: result = std::cos(value); break;
+                case BuiltInTan: result = std::tan(value); break;
+                case BuiltInAsin: result = std::asin(value); break;
+                case BuiltInAcos: result = std::acos(value); break;
+                case BuiltInAtan: result = std::atan(value); break;
+                case BuiltInSqrt: result = std::sqrt(value); break;
+                case BuiltInMin:
+                {
+                    const f32 left = bits_to_f32((u32)pop_bits(vm, kind));
+                    result         = value < left ? value : left;
+                    break;
+                }
+                case BuiltInMax:
+                {
+                    const f32 left = bits_to_f32((u32)pop_bits(vm, kind));
+                    result         = value > left ? value : left;
+                    break;
+                }
+                case BuiltInMap:
+                {
+                    const f32 out_max = value;
+                    const f32 out_min = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 in_max  = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 in_min  = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 v             = bits_to_f32((u32)pop_bits(vm, kind));
+                    ASSERT(in_max != in_min);
+                    result = (v - in_min) / (in_max - in_min) * (out_max - out_min) + out_min;
+                    break;
+                }
+                case BuiltInClamp:
+                {
+                    const f32 max = value;
+                    const f32 min = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 v   = bits_to_f32((u32)pop_bits(vm, kind));
+                    result        = v < min ? min : v > max ? max : v;
+                    break;
+                }
+                case BuiltInSmoothStep:
+                {
+                    const f32 resolution = value;
+                    const f32 x          = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 edge1      = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 edge0      = bits_to_f32((u32)pop_bits(vm, kind));
+                    ASSERT(edge1 != edge0);
+                    const f32 t = (x - edge0) / (edge1 - edge0);
+                    result      = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t * t * (3.0f - 2.0f * t);
+                    result      = std::round(result * resolution) / resolution;
+                    break;
+                }
+                case BuiltInLerp:
+                {
+                    const f32 resolution = value;
+                    const f32 t          = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 b          = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 a          = bits_to_f32((u32)pop_bits(vm, kind));
+                    result               = a + (b - a) * t;
+                    result               = std::round(result * resolution) / resolution;
+                    break;
+                }
+                case BuiltInSlerp:
+                {
+                    const f32 resolution = value;
+                    const f32 t          = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 b          = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 a          = bits_to_f32((u32)pop_bits(vm, kind));
+                    const f32 omega      = std::acos(a * b);
+                    const f32 sin_omega  = std::sin(omega);
+                    if (sin_omega == 0.0f)
+                        result = a;
+                    else
+                        result = (std::sin((1.0f - t) * omega) / sin_omega) * a + (std::sin(t * omega) / sin_omega) * b;
+                    result = std::round(result * resolution) / resolution;
+                    break;
+                }
+            }
+            push_bits(vm, kind, f32_to_bits(result));
         }
         else
         {
-            const f64 value = bits_to_f64(pop_bits(vm, kind));
-            push_bits(vm, kind, f64_to_bits(execute_builtin_unary(value, operation)));
+            const f64 value  = bits_to_f64(pop_bits(vm, kind));
+            f64       result = 0.0;
+            switch (operation)
+            {
+                case BuiltInSin: result = std::sin(value); break;
+                case BuiltInCos: result = std::cos(value); break;
+                case BuiltInTan: result = std::tan(value); break;
+                case BuiltInAsin: result = std::asin(value); break;
+                case BuiltInAcos: result = std::acos(value); break;
+                case BuiltInAtan: result = std::atan(value); break;
+                case BuiltInSqrt: result = std::sqrt(value); break;
+            }
+            push_bits(vm, kind, f64_to_bits(result));
         }
     }
 

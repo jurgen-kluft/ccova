@@ -800,8 +800,6 @@ func lookupBuiltInOperation(name string) (BuiltInOperation, bool) {
 		return BuiltInClamp, true
 	case "math.smoothStep":
 		return BuiltInSmoothStep, true
-	case "math.interpolate":
-		return BuiltInInterpolate, true
 	case "math.lerp":
 		return BuiltInLerp, true
 	case "math.slerp":
