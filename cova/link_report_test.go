@@ -18,10 +18,9 @@ int script_main() { return used(); }
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	linker := NewLinker(ctx, 0, 3)
 	linked, success := linker.Link(program, compiled)
@@ -36,7 +35,7 @@ int script_main() { return used(); }
 	if !strings.Contains(output.String(), "External Functions: 3 functions, 2 unused\n") {
 		t.Fatalf("unexpected external count:\n%s", output.String())
 	}
-	if !strings.Contains(output.String(), "Unused External Functions:\n  never_used\n  dead_only\n") {
+	if !strings.Contains(output.String(), "Unused External Functions: 2\n  never_used\n  dead_only\n") {
 		t.Fatalf("unexpected unused external list:\n%s", output.String())
 	}
 }
@@ -51,10 +50,9 @@ int script_main() { return first() + second(); }
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	linker := NewLinker(ctx, 0, 2)
 	linked, success := linker.Link(program, compiled)
@@ -83,10 +81,9 @@ int script_main() { return 1; }
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	if _, success := NewLinker(ctx, 0, 1).Link(program, compiled); success {
 		t.Fatal("expected unused external function capacity error")

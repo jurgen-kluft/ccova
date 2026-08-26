@@ -83,8 +83,8 @@ void script_main() {
 	if !ok || global.IntValue != 14 {
 		t.Fatalf("expected folded global initializer 14, got %#v", program.Decls[0].Initializer)
 	}
-	if _, err := NewCompiler(ctx).Compile(program); err != nil {
-		t.Fatalf("Compile failed after folding global initializer: %v", err)
+	if _, ok := NewCompiler(ctx).Compile(program); !ok {
+		t.Fatalf("Compile failed after folding global initializer")
 	}
 	call := program.Functions[0].Body.Statements[0].(*AstExprStmt).Expr.(*AstCallExpr)
 	argument, ok := call.Args[0].(*AstNumberLiteral)
@@ -154,9 +154,9 @@ func runOptimizerTestProgram(t *testing.T, source string, optimize bool) int32 {
 			t.Fatalf("Optimize failed: %v", issueDescriptions(ctx))
 		}
 	}
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	linked, success := NewLinker(ctx, 0, 0).Link(program, compiled)
 	if !success {

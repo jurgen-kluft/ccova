@@ -138,10 +138,9 @@ func TestMathBuiltInDiagnostics(t *testing.T) {
 			tokens := mustTokenize(t, ctx, test.script)
 			program := mustParseTokens(t, ctx, tokens)
 
-			var err error
-			_, err = NewCompiler(ctx).Compile(program)
-			if err == nil || !strings.Contains(err.Error(), test.wantError) {
-				t.Fatalf("Compile error = %v, want substring %q", err, test.wantError)
+			_, ok := NewCompiler(ctx).Compile(program)
+			if ok || !strings.Contains(ctx.String(), test.wantError) {
+				t.Fatalf("Compile error = %v, want substring %q", ctx.String(), test.wantError)
 			}
 		})
 	}

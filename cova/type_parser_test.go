@@ -354,9 +354,9 @@ void script_main() { value.values[2] = 1; return; }
 		t.Run(test.name, func(t *testing.T) {
 			ctx := NewContext()
 			program := parseProgram(t, test.script)
-			_, err := NewCompiler(ctx).Compile(program)
-			if err == nil || !strings.Contains(err.Error(), test.message) {
-				t.Fatalf("expected %q compile error, got %v", test.message, err)
+			_, ok := NewCompiler(ctx).Compile(program)
+			if ok || !strings.Contains(ctx.String(), test.message) {
+				t.Fatalf("expected %q compile error, got %v", test.message, ctx.String())
 			}
 		})
 	}

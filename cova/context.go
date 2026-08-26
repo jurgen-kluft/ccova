@@ -40,6 +40,14 @@ func NewContext() *Context {
 	return &Context{}
 }
 
+func (ctx *Context) String() string {
+	errors := ""
+	for _, issue := range ctx.issues {
+		errors += issue.String() + "\n"
+	}
+	return errors
+}
+
 func (ctx *Context) SetVerbose(verbose bool) {
 	ctx.verbose = verbose
 }

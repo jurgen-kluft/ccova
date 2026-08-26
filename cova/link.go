@@ -72,11 +72,11 @@ func (linker *Linker) Report(writer io.Writer, compiled *RelocatableProgram, lin
 			linker.Ctx.AddError("link report error: failed to write unused external functions header: %v", err)
 			return false
 		}
-	}
-	for _, name := range unusedExternalFunctions {
-		if _, err := fmt.Fprintf(writer, "  %s\n", name); err != nil {
-			linker.Ctx.AddError("link report error: failed to write unused external function %q: %v", name, err)
-			return false
+		for _, name := range unusedExternalFunctions {
+			if _, err := fmt.Fprintf(writer, "  %s\n", name); err != nil {
+				linker.Ctx.AddError("link report error: failed to write unused external function %q: %v", name, err)
+				return false
+			}
 		}
 	}
 	return true

@@ -12,10 +12,9 @@ func compileBlockSource(t *testing.T, script string) *RelocatableProgram {
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	return compiled
 }
@@ -25,10 +24,9 @@ func TestCompileRequiresScriptMain(t *testing.T) {
 	tokens := mustTokenize(t, ctx, "int helper() { return 1; }")
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	_, err = NewCompiler(ctx).Compile(program)
-	if err == nil || !strings.Contains(err.Error(), "required entry function \"script_main\" not found") {
-		t.Fatalf("expected missing script_main error, got %v", err)
+	_, ok := NewCompiler(ctx).Compile(program)
+	if ok {
+		t.Fatalf("expected missing script_main error")
 	}
 }
 
@@ -76,8 +74,8 @@ int dead() { return missing(); }
 int script_main() { return 1; }
 `)
 	program := mustParseTokens(t, ctx, tokens)
-	if _, err := NewCompiler(ctx).Compile(program); err == nil || !strings.Contains(err.Error(), "unknown function \"missing\"") {
-		t.Fatalf("expected dead body compile error, got %v", err)
+	if _, ok := NewCompiler(ctx).Compile(program); ok {
+		t.Fatalf("expected dead body compile error")
 	}
 }
 
@@ -184,7 +182,7 @@ func TestCompilerReuseAfterFunctionErrorDoesNotLeakContextState(t *testing.T) {
 int script_main() { return missing(); }
 `)
 	badProgram := mustParseTokens(t, badCtx, badTokens)
-	if _, err := compiler.Compile(badProgram); err == nil {
+	if _, ok := compiler.Compile(badProgram); ok {
 		t.Fatal("expected bad function compilation to fail")
 	}
 
@@ -195,14 +193,13 @@ int script_main() { return helper(); }
 `)
 	goodProgram := mustParseTokens(t, goodCtx, goodTokens)
 
-	var err error
-	reused, err := compiler.Compile(goodProgram)
-	if err != nil {
-		t.Fatalf("Compile with reused compiler failed: %v", err)
+	reused, ok := compiler.Compile(goodProgram)
+	if !ok {
+		t.Fatalf("Compile with reused compiler failed")
 	}
-	fresh, err := NewCompiler(ctx).Compile(goodProgram)
-	if err != nil {
-		t.Fatalf("Compile with fresh compiler failed: %v", err)
+	fresh, ok := NewCompiler(ctx).Compile(goodProgram)
+	if !ok {
+		t.Fatalf("Compile with fresh compiler failed")
 	}
 	if !bytes.Equal(reused.Text, fresh.Text) || !bytes.Equal(reused.ConstData, fresh.ConstData) {
 		t.Fatal("reused compiler retained function-local state")

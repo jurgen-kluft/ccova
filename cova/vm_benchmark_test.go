@@ -18,10 +18,9 @@ func benchmarkLinkedProgram(b *testing.B, source string) *LinkedProgram {
 		b.Fatalf("Parse failed: %v", issueDescriptions(ctx))
 	}
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		b.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		b.Fatalf("Compile failed: %v", issueDescriptions(ctx))
 	}
 	linked, success := NewLinker(ctx, 0, 0).Link(program, compiled)
 	if !success {

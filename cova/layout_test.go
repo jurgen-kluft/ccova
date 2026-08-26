@@ -18,10 +18,9 @@ void script_main(int8 tag, uint64 mask) {
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 
 	if len(compiled.ProgramSymbols.ExternSymbols) != 1 {
@@ -72,10 +71,9 @@ void script_main() {
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	if len(compiled.ProgramSymbols.ExternSymbols) != 2 {
 		t.Fatalf("expected 2 extern symbols, got %d", len(compiled.ProgramSymbols.ExternSymbols))
@@ -102,10 +100,9 @@ void script_main() {
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	linked, success := NewLinker(ctx, 16, 0).Link(program, compiled)
 	if !success {
@@ -139,10 +136,9 @@ void script_main() {
 	tokens := mustTokenize(t, ctx, script)
 	program := mustParseTokens(t, ctx, tokens)
 
-	var err error
-	compiled, err := NewCompiler(ctx).Compile(program)
-	if err != nil {
-		t.Fatalf("Compile failed: %v", err)
+	compiled, ok := NewCompiler(ctx).Compile(program)
+	if !ok {
+		t.Fatalf("Compile failed")
 	}
 	if len(compiled.ProgramSymbols.ConstSymbols) != 2 {
 		t.Fatalf("expected 2 const symbols, got %d", len(compiled.ProgramSymbols.ConstSymbols))

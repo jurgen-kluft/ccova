@@ -21,6 +21,7 @@ const (
 )
 
 type compiledFunctionBlock struct {
+	ctx                     *Context
 	binding                 SymbolBinding
 	code                    CodeMemory
 	callPatches             []CallPatch
@@ -30,6 +31,7 @@ type compiledFunctionBlock struct {
 }
 
 type functionCompiler struct {
+	ctx                     *Context
 	symbolBindings          map[string]SymbolBinding
 	constImage              *[]byte
 	stringLiteralOffsets    map[string]uint32
@@ -125,167 +127,179 @@ func parameterTypes(params []AstParameter) []*Type {
 	return types
 }
 
-func (compiler *Compiler) Compile(program *AstProgramNode) (*RelocatableProgram, error) {
+func (cl *Compiler) Compile(program *AstProgramNode) (*RelocatableProgram, bool) {
 	if program == nil {
-		return nil, fmt.Errorf("compile error: program is nil")
+		cl.ctx.AddError("compile error: program is nil")
+		return nil, false
 	}
 	if len(program.Functions) == 0 {
-		return nil, fmt.Errorf("compile error: no function definitions found")
+		cl.ctx.AddError("compile error: no function definitions found")
+		return nil, false
 	}
 
-	compiler.code = make(CodeMemory, 0, 8192)
-	compiler.symbolBindings = make(map[string]SymbolBinding, len(program.Decls)+len(program.Functions))
-	compiler.externSymbols = compiler.externSymbols[:0]
-	compiler.bssSymbols = compiler.bssSymbols[:0]
-	compiler.dataSymbols = compiler.dataSymbols[:0]
-	compiler.constSymbols = compiler.constSymbols[:0]
-	compiler.functions = compiler.functions[:0]
-	compiler.maxLocalSlots = 0
-	compiler.maxFrameByteSize = 0
-	compiler.externByteSize = 0
-	compiler.bssByteSize = 0
-	compiler.dataByteSize = 0
-	compiler.entryFunction = 0
-	compiler.hasEntryFunction = false
-	compiler.nextTempFuncID = 0
-	compiler.callPatches = compiler.callPatches[:0]
-	compiler.usedExternalFunctionIDs = compiler.usedExternalFunctionIDs[:0]
-	compiler.constImage = compiler.constImage[:0]
-	compiler.dataImage = compiler.dataImage[:0]
-	compiler.stringLiteralOffsets = make(map[string]uint32)
-	compiler.err = nil
+	cl.code = make(CodeMemory, 0, 8192)
+	cl.symbolBindings = make(map[string]SymbolBinding, len(program.Decls)+len(program.Functions))
+	cl.externSymbols = cl.externSymbols[:0]
+	cl.bssSymbols = cl.bssSymbols[:0]
+	cl.dataSymbols = cl.dataSymbols[:0]
+	cl.constSymbols = cl.constSymbols[:0]
+	cl.functions = cl.functions[:0]
+	cl.maxLocalSlots = 0
+	cl.maxFrameByteSize = 0
+	cl.externByteSize = 0
+	cl.bssByteSize = 0
+	cl.dataByteSize = 0
+	cl.entryFunction = 0
+	cl.hasEntryFunction = false
+	cl.nextTempFuncID = 0
+	cl.callPatches = cl.callPatches[:0]
+	cl.usedExternalFunctionIDs = cl.usedExternalFunctionIDs[:0]
+	cl.constImage = cl.constImage[:0]
+	cl.dataImage = cl.dataImage[:0]
+	cl.stringLiteralOffsets = make(map[string]uint32)
+	cl.err = nil
 
 	for _, decl := range program.Decls {
-		compiler.registerTopLevelDecl(decl)
-		if compiler.err != nil {
-			return nil, compiler.err
+		ok := cl.registerTopLevelDecl(decl)
+		if !ok {
+			return nil, false
 		}
 	}
 	for _, decl := range program.Decls {
 		if decl == nil || decl.Initializer == nil {
 			continue
 		}
-		binding, ok := compiler.symbolBindings[decl.Name]
+		binding, ok := cl.symbolBindings[decl.Name]
 		if !ok {
-			return nil, fmt.Errorf("compile error on line %d: unknown top-level declaration %q", decl.Line, decl.Name)
+			cl.fail("compile error on line %d: unknown top-level declaration %q", decl.Line, decl.Name)
+			return nil, false
 		}
-		compiler.initializeGlobal(binding, decl.Initializer, decl.Line)
-		if compiler.err != nil {
-			return nil, compiler.err
+		ok = cl.initializeGlobal(binding, decl.Initializer, decl.Line)
+		if !ok {
+			return nil, false
 		}
 	}
 	for _, function := range program.Functions {
-		compiler.registerScriptFunction(function)
-		if compiler.err != nil {
-			return nil, compiler.err
+		ok := cl.registerScriptFunction(function)
+		if !ok {
+			return nil, false
 		}
 	}
-	if !compiler.hasEntryFunction {
-		return nil, fmt.Errorf("compile error: required entry function %q not found", "script_main")
+	if !cl.hasEntryFunction {
+		cl.fail("compile error: required entry function %q not found", "script_main")
+		return nil, false
 	}
 	blocks := make([]compiledFunctionBlock, 0, len(program.Functions))
 	for _, function := range program.Functions {
-		block, err := compiler.compileFunction(function)
-		if err != nil {
-			return nil, err
+		block, ok := cl.compileFunction(function)
+		if !ok {
+			return nil, false
 		}
 		blocks = append(blocks, block)
 	}
-	if err := compiler.markReachableFunctions(blocks); err != nil {
-		return nil, err
+	if !cl.markReachableFunctions(blocks) {
+		return nil, false
 	}
-	if err := compiler.assembleFunctionBlocks(blocks); err != nil {
-		return nil, err
+	if !cl.assembleFunctionBlocks(blocks) {
+		return nil, false
 	}
 
 	programSymbols := NewProgramSymbols()
-	programSymbols.ExternSymbols = append(programSymbols.ExternSymbols, compiler.externSymbols...)
-	programSymbols.BSSSymbols = append(programSymbols.BSSSymbols, compiler.bssSymbols...)
-	programSymbols.DataSymbols = append(programSymbols.DataSymbols, compiler.dataSymbols...)
-	programSymbols.ConstSymbols = append(programSymbols.ConstSymbols, compiler.constSymbols...)
-	for _, binding := range compiler.externSymbols {
+	programSymbols.ExternSymbols = append(programSymbols.ExternSymbols, cl.externSymbols...)
+	programSymbols.BSSSymbols = append(programSymbols.BSSSymbols, cl.bssSymbols...)
+	programSymbols.DataSymbols = append(programSymbols.DataSymbols, cl.dataSymbols...)
+	programSymbols.ConstSymbols = append(programSymbols.ConstSymbols, cl.constSymbols...)
+	for _, binding := range cl.externSymbols {
 		programSymbols.Symbols[binding.Name] = binding
 	}
-	for _, binding := range compiler.bssSymbols {
+	for _, binding := range cl.bssSymbols {
 		programSymbols.Symbols[binding.Name] = binding
 	}
-	for _, binding := range compiler.dataSymbols {
+	for _, binding := range cl.dataSymbols {
 		programSymbols.Symbols[binding.Name] = binding
 	}
-	for _, binding := range compiler.constSymbols {
+	for _, binding := range cl.constSymbols {
 		programSymbols.Symbols[binding.Name] = binding
 	}
 
 	compiled := &RelocatableProgram{
-		Text:                    compiler.code.Clone(),
+		Text:                    cl.code.Clone(),
 		ProgramSymbols:          programSymbols,
-		Functions:               append([]SymbolBinding(nil), compiler.functions...),
-		CallPatches:             append([]CallPatch(nil), compiler.callPatches...),
-		UsedExternalFunctionIDs: append([]uint32(nil), compiler.usedExternalFunctionIDs...),
-		EntryFunction:           compiler.entryFunction,
-		FrameSize:               compiler.maxLocalSlots,
-		FrameByteSize:           compiler.maxFrameByteSize,
-		ConstByteSize:           lenU32(compiler.constImage),
-		ConstData:               append([]byte(nil), compiler.constImage...),
-		DataByteSize:            compiler.dataByteSize,
-		DataData:                append([]byte(nil), compiler.dataImage...),
-		BSSSize:                 lenU32(compiler.bssSymbols),
-		BSSByteSize:             compiler.bssByteSize,
+		Functions:               append([]SymbolBinding(nil), cl.functions...),
+		CallPatches:             append([]CallPatch(nil), cl.callPatches...),
+		UsedExternalFunctionIDs: append([]uint32(nil), cl.usedExternalFunctionIDs...),
+		EntryFunction:           cl.entryFunction,
+		FrameSize:               cl.maxLocalSlots,
+		FrameByteSize:           cl.maxFrameByteSize,
+		ConstByteSize:           lenU32(cl.constImage),
+		ConstData:               append([]byte(nil), cl.constImage...),
+		DataByteSize:            cl.dataByteSize,
+		DataData:                append([]byte(nil), cl.dataImage...),
+		BSSSize:                 lenU32(cl.bssSymbols),
+		BSSByteSize:             cl.bssByteSize,
 	}
-	return compiled, nil
+	return compiled, true
 }
 
-func (compiler *Compiler) markReachableFunctions(blocks []compiledFunctionBlock) error {
+func (cl *Compiler) markReachableFunctions(blocks []compiledFunctionBlock) bool {
 	blocksByID := make(map[uint32]*compiledFunctionBlock, len(blocks))
 	for index := range blocks {
 		block := &blocks[index]
 		blocksByID[block.binding.TempFuncID] = block
 	}
-	entry, ok := blocksByID[compiler.entryFunction]
+	entry, ok := blocksByID[cl.entryFunction]
 	if !ok {
-		return fmt.Errorf("compile error: unknown script function id %d", compiler.entryFunction)
+		cl.fail("compile error: unknown script function id %d", cl.entryFunction)
+		return false
 	}
+
 	return entry.markReachable(blocksByID)
+}
+
+func (block *compiledFunctionBlock) fail(format string, args ...any) {
+	block.ctx.AddError(format, args...)
 }
 
 // markReachable follows the direct local calls recorded while compiling this
 // block. A block is retained only when this traversal reaches it from the entry.
-func (block *compiledFunctionBlock) markReachable(blocksByID map[uint32]*compiledFunctionBlock) error {
+func (block *compiledFunctionBlock) markReachable(blocksByID map[uint32]*compiledFunctionBlock) bool {
 	switch block.callGraphState {
 	case callGraphVisited:
-		return nil
+		return true
 	case callGraphVisiting:
-		return fmt.Errorf("compile error: recursive script call cycle detected at function %q", block.binding.Name)
+		block.fail("compile error: recursive script call cycle detected at function %q", block.binding.Name)
+		return false
 	}
 	block.callGraphState = callGraphVisiting
 	for _, patch := range block.callPatches {
 		callee, ok := blocksByID[patch.TempFuncID]
 		if !ok {
-			return fmt.Errorf("compile error: unknown script function id %d", patch.TempFuncID)
+			block.fail("compile error: unknown script function id %d", patch.TempFuncID)
+			return false
 		}
-		if err := callee.markReachable(blocksByID); err != nil {
-			return err
+		if !callee.markReachable(blocksByID) {
+			return false
 		}
 	}
 	block.callGraphState = callGraphVisited
-	return nil
+	return true
 }
 
-func (compiler *Compiler) assembleFunctionBlocks(blocks []compiledFunctionBlock) error {
+func (cl *Compiler) assembleFunctionBlocks(blocks []compiledFunctionBlock) bool {
 	finalCode := make(CodeMemory, 0, 8192)
 	finalPatches := make([]CallPatch, 0)
 	usedExternalIDs := make([]uint32, 0)
 	usedExternalSet := make(map[uint32]struct{})
 	externalFunctions := make([]SymbolBinding, 0)
-	for _, binding := range compiler.functions {
+	for _, binding := range cl.functions {
 		if binding.Scope == ScopeExtern {
 			externalFunctions = append(externalFunctions, binding)
 		}
 	}
 	retainedFunctions := make([]SymbolBinding, 0, len(externalFunctions)+len(blocks))
 	retainedFunctions = append(retainedFunctions, externalFunctions...)
-	compiler.maxLocalSlots = 0
-	compiler.maxFrameByteSize = 0
+	cl.maxLocalSlots = 0
+	cl.maxFrameByteSize = 0
 
 	for _, block := range blocks {
 		if block.callGraphState != callGraphVisited {
@@ -294,17 +308,20 @@ func (compiler *Compiler) assembleFunctionBlocks(blocks []compiledFunctionBlock)
 		base := len(finalCode)
 		baseU32, ok := imageUint32FromInt(base)
 		if !ok {
-			return fmt.Errorf("compile error: function %q code address %d exceeds uint32", block.binding.Name, base)
+			cl.fail("compile error: function %q code address %d exceeds uint32", block.binding.Name, base)
+			return false
 		}
 		code := block.code.Clone()
 		for _, operandPos := range block.jumpOperandPositions {
 			if operandPos < 0 || operandPos+4 > len(code) {
-				return fmt.Errorf("compile error: function %q has invalid jump operand position %d", block.binding.Name, operandPos)
+				cl.fail("compile error: function %q has invalid jump operand position %d", block.binding.Name, operandPos)
+				return false
 			}
 			ip := uint32(operandPos)
 			target := code.ReadUint32(&ip)
 			if uint64(target)+uint64(baseU32) > uint64(^uint32(0)) {
-				return fmt.Errorf("compile error: function %q jump target exceeds uint32", block.binding.Name)
+				cl.fail("compile error: function %q jump target exceeds uint32", block.binding.Name)
+				return false
 			}
 			code.PatchUint32(operandPos, target+baseU32)
 		}
@@ -315,13 +332,13 @@ func (compiler *Compiler) assembleFunctionBlocks(blocks []compiledFunctionBlock)
 		finalCode = append(finalCode, code...)
 		binding := block.binding
 		binding.ScriptAddress = baseU32
-		compiler.symbolBindings[binding.Name] = binding
+		cl.symbolBindings[binding.Name] = binding
 		retainedFunctions = append(retainedFunctions, binding)
-		if binding.FrameSlotCount > compiler.maxLocalSlots {
-			compiler.maxLocalSlots = binding.FrameSlotCount
+		if binding.FrameSlotCount > cl.maxLocalSlots {
+			cl.maxLocalSlots = binding.FrameSlotCount
 		}
-		if binding.FrameByteSize > compiler.maxFrameByteSize {
-			compiler.maxFrameByteSize = binding.FrameByteSize
+		if binding.FrameByteSize > cl.maxFrameByteSize {
+			cl.maxFrameByteSize = binding.FrameByteSize
 		}
 		for _, tempFuncID := range block.usedExternalFunctionIDs {
 			if _, seen := usedExternalSet[tempFuncID]; seen {
@@ -332,24 +349,24 @@ func (compiler *Compiler) assembleFunctionBlocks(blocks []compiledFunctionBlock)
 		}
 	}
 
-	compiler.code = finalCode
-	compiler.callPatches = finalPatches
-	compiler.usedExternalFunctionIDs = usedExternalIDs
-	compiler.functions = retainedFunctions
-	return nil
+	cl.code = finalCode
+	cl.callPatches = finalPatches
+	cl.usedExternalFunctionIDs = usedExternalIDs
+	cl.functions = retainedFunctions
+	return true
 }
 
-func (compiler *Compiler) registerTopLevelDecl(decl *AstTopLevelDeclNode) {
-	if decl == nil || compiler.err != nil {
-		return
+func (cl *Compiler) registerTopLevelDecl(decl *AstTopLevelDeclNode) bool {
+	if decl == nil || cl.err != nil {
+		return false
 	}
 	if _, builtIn := lookupBuiltInOperation(decl.Name); builtIn {
-		compiler.fail(fmt.Errorf("compile error on line %d: top-level declaration %q uses a reserved built-in name", decl.Line, decl.Name))
-		return
+		cl.fail("compile error on line %d: top-level declaration %q uses a reserved built-in name", decl.Line, decl.Name)
+		return false
 	}
-	if _, exists := compiler.symbolBindings[decl.Name]; exists {
-		compiler.fail(fmt.Errorf("compile error on line %d: duplicate top-level declaration %q", decl.Line, decl.Name))
-		return
+	if _, exists := cl.symbolBindings[decl.Name]; exists {
+		cl.fail("compile error on line %d: duplicate top-level declaration %q", decl.Line, decl.Name)
+		return false
 	}
 
 	binding := SymbolBinding{
@@ -367,89 +384,90 @@ func (compiler *Compiler) registerTopLevelDecl(decl *AstTopLevelDeclNode) {
 	case DeclVariable:
 		switch decl.Scope {
 		case ScopeExtern:
-			byteOffsetU32, ok := checkedAlignUpU32(compiler.externByteSize, binding.ByteAlignment)
+			byteOffsetU32, ok := checkedAlignUpU32(cl.externByteSize, binding.ByteAlignment)
 			if !ok || uint64(byteOffsetU32)+uint64(binding.ByteSize) > uint64(^uint32(0)) {
-				compiler.fail(fmt.Errorf("compile error on line %d: extern variable %q layout exceeds uint32", decl.Line, decl.Name))
-				return
+				cl.fail("compile error on line %d: extern variable %q layout exceeds uint32", decl.Line, decl.Name)
+				return false
 			}
-			binding.SlotIndex = lenU32(compiler.externSymbols)
+			binding.SlotIndex = lenU32(cl.externSymbols)
 			binding.ByteOffset = byteOffsetU32
-			compiler.externByteSize = byteOffsetU32 + binding.ByteSize
-			compiler.externSymbols = append(compiler.externSymbols, binding)
+			cl.externByteSize = byteOffsetU32 + binding.ByteSize
+			cl.externSymbols = append(cl.externSymbols, binding)
 		case ScopeBSS:
-			byteOffsetU32 := alignUpU32(compiler.bssByteSize, binding.ByteAlignment)
-			binding.SlotIndex = lenU32(compiler.bssSymbols)
+			byteOffsetU32 := alignUpU32(cl.bssByteSize, binding.ByteAlignment)
+			binding.SlotIndex = lenU32(cl.bssSymbols)
 			binding.ByteOffset = byteOffsetU32
-			compiler.bssByteSize = byteOffsetU32 + binding.ByteSize
-			compiler.bssSymbols = append(compiler.bssSymbols, binding)
+			cl.bssByteSize = byteOffsetU32 + binding.ByteSize
+			cl.bssSymbols = append(cl.bssSymbols, binding)
 		case ScopeData:
-			byteOffsetU32 := alignUpU32(compiler.dataByteSize, binding.ByteAlignment)
-			binding.SlotIndex = lenU32(compiler.dataSymbols)
+			byteOffsetU32 := alignUpU32(cl.dataByteSize, binding.ByteAlignment)
+			binding.SlotIndex = lenU32(cl.dataSymbols)
 			binding.ByteOffset = byteOffsetU32
-			compiler.dataByteSize = byteOffsetU32 + binding.ByteSize
-			compiler.ensureDataSize(compiler.dataByteSize)
-			compiler.dataSymbols = append(compiler.dataSymbols, binding)
+			cl.dataByteSize = byteOffsetU32 + binding.ByteSize
+			cl.ensureDataSize(cl.dataByteSize)
+			cl.dataSymbols = append(cl.dataSymbols, binding)
 		case ScopeConst:
-			byteOffsetU32 := alignUpU32(lenU32(compiler.constImage), binding.ByteAlignment)
-			binding.SlotIndex = lenU32(compiler.constSymbols)
+			byteOffsetU32 := alignUpU32(lenU32(cl.constImage), binding.ByteAlignment)
+			binding.SlotIndex = lenU32(cl.constSymbols)
 			binding.ByteOffset = byteOffsetU32
-			compiler.ensureConstSize(byteOffsetU32 + binding.ByteSize)
-			compiler.constSymbols = append(compiler.constSymbols, binding)
+			cl.ensureConstSize(byteOffsetU32 + binding.ByteSize)
+			cl.constSymbols = append(cl.constSymbols, binding)
 		default:
-			compiler.fail(fmt.Errorf("compile error on line %d: variable %q has invalid scope %d", decl.Line, decl.Name, decl.Scope))
-			return
+			cl.fail("compile error on line %d: variable %q has invalid scope %d", decl.Line, decl.Name, decl.Scope)
+			return false
 		}
 	case DeclFunction:
 		if decl.Scope != ScopeExtern {
-			compiler.fail(fmt.Errorf("compile error on line %d: function contract %q must be host-linked", decl.Line, decl.Name))
-			return
+			cl.fail("compile error on line %d: function contract %q must be host-linked", decl.Line, decl.Name)
+			return false
 		}
 		if isAggregateType(decl.Type) {
-			compiler.fail(fmt.Errorf("compile error on line %d: host-linked function %q cannot return aggregate type %s", decl.Line, decl.Name, decl.Type))
-			return
+			cl.fail("compile error on line %d: host-linked function %q cannot return aggregate type %s", decl.Line, decl.Name, decl.Type)
+			return false
 		}
 		for _, param := range decl.Params {
 			if isAggregateType(param.Type) {
-				compiler.fail(fmt.Errorf("compile error on line %d: parameter %q cannot have aggregate type %s", param.Line, param.Name, param.Type))
-				return
+				cl.fail("compile error on line %d: parameter %q cannot have aggregate type %s", param.Line, param.Name, param.Type)
+				return false
 			}
 		}
 		indexU32, ok := imageUint32FromInt(decl.Index)
 		if !ok {
-			compiler.fail(fmt.Errorf("compile error on line %d: host-linked function %q slot %d exceeds uint32", decl.Line, decl.Name, decl.Index))
-			return
+			cl.fail("compile error on line %d: host-linked function %q slot %d exceeds uint32", decl.Line, decl.Name, decl.Index)
+			return false
 		}
 		binding.SlotIndex = indexU32
-		binding.TempFuncID = compiler.allocateTempFuncID()
-		compiler.trackFunctionBinding(binding)
+		binding.TempFuncID = cl.allocateTempFuncID()
+		cl.trackFunctionBinding(binding)
 	default:
-		compiler.fail(fmt.Errorf("compile error on line %d: unsupported declaration kind %d", decl.Line, decl.Kind))
-		return
+		cl.fail("compile error on line %d: unsupported declaration kind %d", decl.Line, decl.Kind)
+		return false
 	}
 
-	compiler.symbolBindings[decl.Name] = binding
+	cl.symbolBindings[decl.Name] = binding
+	return true
 }
 
-func (compiler *Compiler) registerScriptFunction(function *AstFunctionNode) {
-	if function == nil || compiler.err != nil {
-		return
+func (cl *Compiler) registerScriptFunction(function *AstFunctionNode) bool {
+	if function == nil || cl.err != nil {
+		return false
 	}
 	if _, builtIn := lookupBuiltInOperation(function.Name); builtIn {
-		compiler.fail(fmt.Errorf("compile error on line %d: function %q uses a reserved built-in name", function.Line, function.Name))
-		return
+		cl.fail("compile error on line %d: function %q uses a reserved built-in name", function.Line, function.Name)
+		return false
 	}
-	if _, exists := compiler.symbolBindings[function.Name]; exists {
-		compiler.fail(fmt.Errorf("compile error on line %d: duplicate top-level declaration %q", function.Line, function.Name))
-		return
+	if _, exists := cl.symbolBindings[function.Name]; exists {
+		cl.fail("compile error on line %d: duplicate top-level declaration %q", function.Line, function.Name)
+		return false
 	}
 	if isAggregateType(function.ReturnType) {
-		compiler.fail(fmt.Errorf("compile error on line %d: function %q cannot return aggregate type %s", function.Line, function.Name, function.ReturnType))
-		return
+		cl.fail("compile error on line %d: function %q cannot return aggregate type %s", function.Line, function.Name, function.ReturnType)
+		return false
 	}
 	for _, param := range function.Params {
 		if isAggregateType(param.Type) {
-			compiler.fail(fmt.Errorf("compile error on line %d: parameter %q cannot have aggregate type %s", param.Line, param.Name, param.Type))
-			return
+			cl.fail("compile error on line %d: parameter %q cannot have aggregate type %s", param.Line, param.Name, param.Type)
+			return false
 		}
 	}
 	binding := SymbolBinding{
@@ -461,38 +479,42 @@ func (compiler *Compiler) registerScriptFunction(function *AstFunctionNode) {
 		ByteAlignment: uint32(function.ReturnType.Alignment()),
 		ParamCount:    lenU32(function.Params),
 		ParamTypes:    parameterTypes(function.Params),
-		TempFuncID:    compiler.allocateTempFuncID(),
+		TempFuncID:    cl.allocateTempFuncID(),
 	}
-	compiler.trackFunctionBinding(binding)
-	compiler.symbolBindings[function.Name] = binding
+	cl.trackFunctionBinding(binding)
+	cl.symbolBindings[function.Name] = binding
 	if function.Name == "script_main" {
-		compiler.entryFunction = binding.TempFuncID
-		compiler.hasEntryFunction = true
+		cl.entryFunction = binding.TempFuncID
+		cl.hasEntryFunction = true
 	}
+	return true
 }
 
-func (compiler *Compiler) allocateTempFuncID() uint32 {
-	tempFuncID := compiler.nextTempFuncID
-	compiler.nextTempFuncID++
+func (cl *Compiler) allocateTempFuncID() uint32 {
+	tempFuncID := cl.nextTempFuncID
+	cl.nextTempFuncID++
 	return tempFuncID
 }
 
-func (compiler *Compiler) trackFunctionBinding(binding SymbolBinding) {
-	compiler.functions = append(compiler.functions, binding)
+func (cl *Compiler) trackFunctionBinding(binding SymbolBinding) {
+	cl.functions = append(cl.functions, binding)
 }
 
-func (compiler *Compiler) compileFunction(function *AstFunctionNode) (compiledFunctionBlock, error) {
+func (cl *Compiler) compileFunction(function *AstFunctionNode) (compiledFunctionBlock, bool) {
 	if function == nil {
-		return compiledFunctionBlock{}, fmt.Errorf("compile error: function is nil")
+		cl.fail("compile error: function is nil")
+		return compiledFunctionBlock{}, false
 	}
-	binding, ok := compiler.symbolBindings[function.Name]
+	binding, ok := cl.symbolBindings[function.Name]
 	if !ok || binding.Kind != DeclFunction {
-		return compiledFunctionBlock{}, fmt.Errorf("compile error on line %d: unknown function %q", function.Line, function.Name)
+		cl.fail("compile error on line %d: unknown function %q", function.Line, function.Name)
+		return compiledFunctionBlock{}, false
 	}
 	context := &functionCompiler{
-		symbolBindings:       compiler.symbolBindings,
-		constImage:           &compiler.constImage,
-		stringLiteralOffsets: compiler.stringLiteralOffsets,
+		ctx:                  cl.ctx,
+		symbolBindings:       cl.symbolBindings,
+		constImage:           &cl.constImage,
+		stringLiteralOffsets: cl.stringLiteralOffsets,
 		code:                 make(CodeMemory, 0, 256),
 		localSlots:           make(map[string]uint32, len(function.Params)),
 		localTypes:           make(map[string]*Type, len(function.Params)),
@@ -504,7 +526,8 @@ func (compiler *Compiler) compileFunction(function *AstFunctionNode) (compiledFu
 	paramOffsets := make([]uint32, 0, len(function.Params))
 	for _, param := range function.Params {
 		if _, exists := context.localSlots[param.Name]; exists {
-			return compiledFunctionBlock{}, fmt.Errorf("compile error on line %d: duplicate parameter %q", param.Line, param.Name)
+			cl.fail("compile error on line %d: duplicate parameter %q", param.Line, param.Name)
+			return compiledFunctionBlock{}, false
 		}
 		frameByteSize = alignUpU32(frameByteSize, uint32(param.Type.Alignment()))
 		context.localSlots[param.Name] = frameByteSize
@@ -519,7 +542,8 @@ func (compiler *Compiler) compileFunction(function *AstFunctionNode) (compiledFu
 	context.frameByteSize = frameByteSize
 	context.compileBlock(function.Body)
 	if context.err != nil {
-		return compiledFunctionBlock{}, context.err
+		cl.fail("compile error on line %d: %v", function.Line, context.err)
+		return compiledFunctionBlock{}, false
 	}
 	if len(context.code) == 0 || Opcode(context.code[len(context.code)-1]) != OpRet {
 		context.emit(OpRet)
@@ -527,12 +551,13 @@ func (compiler *Compiler) compileFunction(function *AstFunctionNode) (compiledFu
 	binding.FrameSlotCount = context.localSlotCount
 	binding.FrameByteSize = context.frameByteSize
 	return compiledFunctionBlock{
+		ctx:                     cl.ctx,
 		binding:                 binding,
 		code:                    context.code,
 		callPatches:             context.callPatches,
 		jumpOperandPositions:    context.jumpOperandPositions,
 		usedExternalFunctionIDs: context.usedExternalFunctionIDs,
-	}, nil
+	}, true
 }
 
 func cloneBindingsMap(bindings map[string]SymbolBinding) map[string]SymbolBinding {
@@ -770,21 +795,21 @@ func (fc *functionCompiler) compileExprAs(expr AstExprNode, expected *Type) {
 	}
 }
 
-func (compiler *Compiler) canAssignStringLiteral(target *Type) bool {
+func (cl *Compiler) canAssignStringLiteral(target *Type) bool {
 	if target == nil || target.Kind != TypePointer || target.Base == nil {
 		return false
 	}
 	return target.Base.Kind == TypeUint8 && target.Base.IsConst
 }
 
-func (compiler *Compiler) internStringLiteral(value string) uint32 {
-	if offset, ok := compiler.stringLiteralOffsets[value]; ok {
+func (cl *Compiler) internStringLiteral(value string) uint32 {
+	if offset, ok := cl.stringLiteralOffsets[value]; ok {
 		return offset
 	}
-	offset := lenU32(compiler.constImage)
-	compiler.constImage = append(compiler.constImage, []byte(value)...)
-	compiler.constImage = append(compiler.constImage, 0)
-	compiler.stringLiteralOffsets[value] = offset
+	offset := lenU32(cl.constImage)
+	cl.constImage = append(cl.constImage, []byte(value)...)
+	cl.constImage = append(cl.constImage, 0)
+	cl.stringLiteralOffsets[value] = offset
 	return offset
 }
 
@@ -807,57 +832,57 @@ func (fc *functionCompiler) numberLiteralBits(node *AstNumberLiteral, kind Value
 	return numberLiteralBits(node, kind)
 }
 
-func (compiler *Compiler) ensureDataSize(size uint32) {
-	if size <= lenU32(compiler.dataImage) {
+func (cl *Compiler) ensureDataSize(size uint32) {
+	if size <= lenU32(cl.dataImage) {
 		return
 	}
-	compiler.dataImage = append(compiler.dataImage, make([]byte, int(size-lenU32(compiler.dataImage)))...)
+	cl.dataImage = append(cl.dataImage, make([]byte, int(size-lenU32(cl.dataImage)))...)
 }
 
-func (compiler *Compiler) ensureConstSize(size uint32) {
-	if size <= lenU32(compiler.constImage) {
+func (cl *Compiler) ensureConstSize(size uint32) {
+	if size <= lenU32(cl.constImage) {
 		return
 	}
-	compiler.constImage = append(compiler.constImage, make([]byte, int(size-lenU32(compiler.constImage)))...)
+	cl.constImage = append(cl.constImage, make([]byte, int(size-lenU32(cl.constImage)))...)
 }
 
-func (compiler *Compiler) initializeGlobal(binding SymbolBinding, expr AstExprNode, line int) {
-	if compiler.err != nil {
-		return
+func (cl *Compiler) initializeGlobal(binding SymbolBinding, expr AstExprNode, line int) bool {
+	if cl.err != nil {
+		return false
 	}
 	if binding.Scope != ScopeData && binding.Scope != ScopeConst {
-		compiler.fail(fmt.Errorf("compile error on line %d: initializer for %q requires static storage", line, binding.Name))
-		return
+		cl.fail("compile error on line %d: initializer for %q requires static storage", line, binding.Name)
+		return false
 	}
 	if isAggregateType(binding.Type) {
-		compiler.fail(fmt.Errorf("compile error on line %d: aggregate initializer for %q is not supported yet", line, binding.Name))
-		return
+		cl.fail("compile error on line %d: aggregate initializer for %q is not supported yet", line, binding.Name)
+		return false
 	}
 	bindingKind := valueKindFromType(binding.Type)
 	if binding.Type != nil && binding.Type.Kind == TypePointer {
 		bindingKind = KindAddress
 	}
-	bits, err := compiler.globalInitializerBits(binding.Type, expr, line)
-	if err != nil {
-		compiler.fail(err)
-		return
+	bits, success := cl.globalInitializerBits(binding.Type, expr, line)
+	if !success {
+		return false
 	}
 	var segment MemorySegment
 	if binding.Scope == ScopeConst {
-		compiler.ensureConstSize(binding.ByteOffset + binding.ByteSize)
-		segment = MemorySegment(compiler.constImage)
+		cl.ensureConstSize(binding.ByteOffset + binding.ByteSize)
+		segment = MemorySegment(cl.constImage)
 	} else {
-		segment = MemorySegment(compiler.dataImage)
+		segment = MemorySegment(cl.dataImage)
 	}
 	if status := writeGlobalInitializer(&segment, binding.ByteOffset, bindingKind, bits); status != VMStatusOK {
-		compiler.fail(fmt.Errorf("compile error on line %d: failed to encode initializer for %q: %s", line, binding.Name, status))
-		return
+		cl.fail("compile error on line %d: failed to encode initializer for %q: %s", line, binding.Name, status)
+		return false
 	}
 	if binding.Scope == ScopeConst {
-		compiler.constImage = []byte(segment)
-		return
+		cl.constImage = []byte(segment)
+		return true
 	}
-	compiler.dataImage = []byte(segment)
+	cl.dataImage = []byte(segment)
+	return true
 }
 
 func writeGlobalInitializer(segment *MemorySegment, offset uint32, kind ValueKind, bits uint64) VMStatus {
@@ -875,30 +900,35 @@ func writeGlobalInitializer(segment *MemorySegment, offset uint32, kind ValueKin
 	}
 }
 
-func (compiler *Compiler) globalInitializerBits(target *Type, expr AstExprNode, line int) (uint64, error) {
+func (cl *Compiler) globalInitializerBits(target *Type, expr AstExprNode, line int) (uint64, bool) {
 	if target == nil {
-		return 0, fmt.Errorf("compile error on line %d: global initializer target has invalid type", line)
+		cl.fail("compile error on line %d: global initializer target has invalid type", line)
+		return 0, false
 	}
 	switch node := expr.(type) {
 	case *AstNumberLiteral:
 		if target.Kind == TypePointer {
 			if node.IsFloat || node.IntValue != 0 {
-				return 0, fmt.Errorf("compile error on line %d: pointer global initializer must be a string literal or 0", line)
+				cl.fail("compile error on line %d: pointer global initializer must be a string literal or 0", line)
+				return 0, false
 			}
-			return 0, nil
+			return 0, true
 		}
 		kind := valueKindFromType(target)
 		if kind == KindNone || kind == KindAddress {
-			return 0, fmt.Errorf("compile error on line %d: unsupported global initializer type %v", line, target)
+			cl.fail("compile error on line %d: unsupported global initializer type %v", line, target)
+			return 0, false
 		}
-		return compiler.numberLiteralBits(node, kind), nil
+		return cl.numberLiteralBits(node, kind), true
 	case *AstStringLiteral:
-		if !compiler.canAssignStringLiteral(target) {
-			return 0, fmt.Errorf("compile error on line %d: string literal is not assignable to %v", line, target)
+		if !cl.canAssignStringLiteral(target) {
+			cl.fail("compile error on line %d: string literal is not assignable to %v", line, target)
+			return 0, false
 		}
-		return uint64(uint32(makeAddress(segmentConst, compiler.internStringLiteral(node.Value)))), nil
+		return uint64(uint32(makeAddress(segmentConst, cl.internStringLiteral(node.Value)))), true
 	default:
-		return 0, fmt.Errorf("compile error on line %d: unsupported global initializer %T", line, expr)
+		cl.fail("compile error on line %d: unsupported global initializer %T", line, expr)
+		return 0, false
 	}
 }
 
@@ -1022,7 +1052,7 @@ func promoteNumericType(left *Type, right *Type) *Type {
 	return Int32Type
 }
 
-func (compiler *Compiler) numberLiteralBits(node *AstNumberLiteral, kind ValueKind) uint64 {
+func (cl *Compiler) numberLiteralBits(node *AstNumberLiteral, kind ValueKind) uint64 {
 	return numberLiteralBits(node, kind)
 }
 
@@ -1528,10 +1558,8 @@ func (fc *functionCompiler) patchOperand(position int, operand int) {
 	fc.code.PatchUint32(position, uint32(operand))
 }
 
-func (compiler *Compiler) fail(err error) {
-	if compiler.err == nil {
-		compiler.err = err
-	}
+func (cl *Compiler) fail(format string, args ...any) {
+	cl.ctx.AddError(format, args...)
 }
 
 func (fc *functionCompiler) fail(err error) {

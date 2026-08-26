@@ -40,8 +40,8 @@ void reduce_health(int delta) {
 	checkOK(ctx, cova.Optimize(ctx, program))
 
 	compiler := cova.NewCompiler(ctx)
-	compiled, err := compiler.Compile(program)
-	check(err)
+	compiled, ok := compiler.Compile(program)
+	checkOK(ctx, ok)
 
 	linker := cova.NewLinker(ctx, len(externMemory), 1)
 	linked, success := linker.Link(program, compiled)
