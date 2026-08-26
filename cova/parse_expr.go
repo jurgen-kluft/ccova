@@ -20,6 +20,29 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 
 	for {
 		token := parser.core.peek()
+		if token.Kind == TokColonColon {
+			qualifier, ok := left.(*AstIdentNode)
+			if !ok {
+				return nil, parser.core.errorf(token, "qualified names are not supported")
+			}
+			parser.core.pos++
+			name, err := parser.core.expect(TokIdent)
+			if err != nil {
+				return nil, err
+			}
+			if !parser.core.match(TokLParen) {
+				return nil, parser.core.errorf(parser.core.peek(), "qualified names are only supported for built-in calls")
+			}
+			args, err := parser.core.parseArguments()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := parser.core.expect(TokRParen); err != nil {
+				return nil, err
+			}
+			left = &AstCallExpr{Callee: qualifier.Name + "::" + name.Text, Args: args, Line: qualifier.Line}
+			continue
+		}
 		if message := unsupportedExpressionToken(token.Kind); message != "" {
 			return nil, parser.core.errorf(token, message)
 		}

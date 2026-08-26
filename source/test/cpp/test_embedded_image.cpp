@@ -31,10 +31,10 @@ UNITTEST_SUITE_BEGIN(cova_embedded_image)
 
             load_program_image(&vm, go_program_image, (u32)go_program_image_len);
             run_loaded_vm(&vm);
-            CHECK_EQUAL((s32)6, (s32)(u32)pop_bits(&vm, KindInt32));
+            CHECK_EQUAL((s32)6, (s32)pop_bits32(&vm, KindInt32));
 
             run_loaded_vm(&vm);
-            CHECK_EQUAL((s32)6, (s32)(u32)pop_bits(&vm, KindInt32));
+            CHECK_EQUAL((s32)6, (s32)pop_bits32(&vm, KindInt32));
         }
     }
 }

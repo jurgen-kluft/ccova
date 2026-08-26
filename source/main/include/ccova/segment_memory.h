@@ -26,14 +26,16 @@ namespace ncore
     void append_u16(segment_memory_t* memory, u16 value);
     void append_u32(segment_memory_t* memory, u32 value);
     void append_u64(segment_memory_t* memory, u64 value);
-    void append_bits(segment_memory_t* memory, evaluekind_t kind, u64 bits);
+    void append_bits32(segment_memory_t* memory, evaluekind_t kind, u32 bits);
+    void append_bits64(segment_memory_t* memory, evaluekind_t kind, u64 bits);
     void append_from(segment_memory_t* memory, const segment_memory_t* source, u32 offset, u32 size);
 
     u8   truncate_u8(segment_memory_t* memory);
     u16  truncate_u16(segment_memory_t* memory);
     u32  truncate_u32(segment_memory_t* memory);
     u64  truncate_u64(segment_memory_t* memory);
-    u64  truncate_bits(segment_memory_t* memory, evaluekind_t kind);
+    u32  truncate_bits32(segment_memory_t* memory, evaluekind_t kind);
+    u64  truncate_bits64(segment_memory_t* memory, evaluekind_t kind);
     void truncate_to(segment_memory_t* memory, segment_memory_t* destination, u32 offset, u32 size);
 } // namespace ncore
 

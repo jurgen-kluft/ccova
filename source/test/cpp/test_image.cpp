@@ -118,7 +118,7 @@ UNITTEST_SUITE_BEGIN(cova_image)
             run_vm_image(&vm, block, data_offset + 4);
 
             CHECK_TRUE(vm.m_program == (const linked_program_t*)block);
-            CHECK_EQUAL((u64)42, pop_bits(&vm, KindInt32));
+            CHECK_EQUAL((u32)42, pop_bits32(&vm, KindInt32));
             CHECK_EQUAL((u32)4, vm.m_memory.m_segments[SegmentBSS].m_size);
             CHECK_EQUAL((u32)0x12345678U, read_u32(&vm.m_memory, make_address(SegmentData, 0)));
             CHECK_EQUAL((u8)2, read_u8(&vm.m_memory, make_address(SegmentConst, 1)));

@@ -56,6 +56,24 @@ UNITTEST_SUITE_BEGIN(cova_types)
             CHECK_EQUAL((u32)SegmentData, (u32)address_segment(address));
             CHECK_EQUAL((u32)0x00abcdefU, address_index(address));
         }
+
+        UNITTEST_TEST(value_kind_transport_width)
+        {
+            for (u32 kind = KindBool; kind < KindCount; ++kind)
+            {
+                const evaluekind_t value_kind = (evaluekind_t)kind;
+                if (value_kind_size(value_kind) <= 4)
+                {
+                    CHECK_TRUE(value_kind_is_32_bit(value_kind));
+                    CHECK_FALSE(value_kind_is_64_bit(value_kind));
+                }
+                else
+                {
+                    CHECK_FALSE(value_kind_is_32_bit(value_kind));
+                    CHECK_TRUE(value_kind_is_64_bit(value_kind));
+                }
+            }
+        }
     }
 }
 UNITTEST_SUITE_END

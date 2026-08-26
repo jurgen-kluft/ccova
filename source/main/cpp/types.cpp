@@ -12,6 +12,14 @@ namespace ncore
         return s_value_kind_sizes[(u32)kind];
     }
 
+    bool value_kind_is_32_bit(evaluekind_t kind)
+    {
+        const u32 size = value_kind_size(kind);
+        return size > 0 && size <= 4;
+    }
+
+    bool value_kind_is_64_bit(evaluekind_t kind) { return value_kind_size(kind) == 8; }
+
     instruction_t make_instruction(eopcode_t opcode, evaluekind_t kind)
     {
         ASSERT((u32)opcode > 0 && (u32)opcode < (u32)OpcodeCount);

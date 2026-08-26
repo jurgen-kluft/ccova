@@ -20,11 +20,11 @@ namespace ncore
         return instruction;
     }
 
-    u64 read_immediate(const code_memory_t* memory, u32* offset, evaluekind_t kind)
+    u32 read_immediate32(const code_memory_t* memory, u32* offset, evaluekind_t kind)
     {
         ASSERT(offset != nullptr);
+        ASSERT(value_kind_is_32_bit(kind));
         const u32 size = value_kind_size(kind);
-        ASSERT(size != 0);
         assert_code_range(memory, *offset, size);
         const byte* data = memory->m_code + *offset;
         *offset += size;
@@ -33,9 +33,18 @@ namespace ncore
             case 1: return data[0];
             case 2: return read_le_u16(data);
             case 4: return read_le_u32(data);
-            case 8: return read_le_u64(data);
             default: ASSERT(false); return 0;
         }
+    }
+
+    u64 read_immediate64(const code_memory_t* memory, u32* offset, evaluekind_t kind)
+    {
+        ASSERT(offset != nullptr);
+        ASSERT(value_kind_is_64_bit(kind));
+        assert_code_range(memory, *offset, 8);
+        const u64 value = read_le_u64(memory->m_code + *offset);
+        *offset += 8;
+        return value;
     }
 
     u32 read_u32(const code_memory_t* memory, u32* offset)

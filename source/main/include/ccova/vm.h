@@ -28,6 +28,9 @@ namespace ncore
         u32                     m_call_frame_count;
         u32                     m_call_frame_capacity;
         u32                     m_frame_top;
+        u64                     m_random_seed;
+        u64                     m_random_s0;
+        u64                     m_random_s1;
     };
 
     void initialize_vm(vm_t* vm, call_frame_t* call_frames, u32 call_frame_capacity, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack);
@@ -40,8 +43,10 @@ namespace ncore
     void run_vm_image(vm_t* vm, const byte* block, u32 block_size);
     void run_loaded_vm(vm_t* vm);
 
-    void push_bits(vm_t* vm, evaluekind_t kind, u64 bits);
-    u64  pop_bits(vm_t* vm, evaluekind_t kind);
+    void push_bits32(vm_t* vm, evaluekind_t kind, u32 bits);
+    u32  pop_bits32(vm_t* vm, evaluekind_t kind);
+    void push_bits64(vm_t* vm, evaluekind_t kind, u64 bits);
+    u64  pop_bits64(vm_t* vm, evaluekind_t kind);
 } // namespace ncore
 
 #endif

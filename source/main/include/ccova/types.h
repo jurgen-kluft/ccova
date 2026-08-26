@@ -29,23 +29,23 @@ namespace ncore
     enum ebuiltinoperation_t : u8
     {
         BuiltInOperationInvalid = 0,
-        BuiltInAbs,         // math.abs(value)
-        BuiltInSin,         // math.sin(value)
-        BuiltInCos,         // math.cos(value)
-        BuiltInTan,         // math.tan(value)
-        BuiltInAsin,        // math.asin(value)
-        BuiltInAcos,        // math.acos(value)
-        BuiltInAtan,        // math.atan(value)
-        BuiltInPow,         // math.pow(base, exponent)
-        BuiltInSqrt,        // math.sqrt(value)
-        BuiltInMin,         // math.min(a,b)
-        BuiltInMax,         // math.max(a,b)
-        BuiltInMap,         // math.map(value, inMin, inMax, outMin, outMax)
-        BuiltInRandom,      // math.random() -> int32
-        BuiltInClamp,       // math.clamp(value, min, max)
-        BuiltInSmoothStep,  // math.smoothstep(edge0, edge1, x, resolution)
-        BuiltInLerp,        // math.lerp(a, b, t, resolution)
-        BuiltInSlerp,       // math.slerp(a, b, t, resolution)
+        BuiltInAbs,         // math::abs(value)
+        BuiltInSin,         // math::sin(value)
+        BuiltInCos,         // math::cos(value)
+        BuiltInTan,         // math::tan(value)
+        BuiltInAsin,        // math::asin(value)
+        BuiltInAcos,        // math::acos(value)
+        BuiltInAtan,        // math::atan(value)
+        BuiltInPow,         // math::pow(base, exponent)
+        BuiltInSqrt,        // math::sqrt(value)
+        BuiltInMin,         // math::min(a, b)
+        BuiltInMax,         // math::max(a, b)
+        BuiltInMap,         // math::map(value, inMin, inMax, outMin, outMax)
+        BuiltInRandom,      // math::random() -> int32
+        BuiltInClamp,       // math::clamp(value, min, max)
+        BuiltInSmoothStep,  // math::smoothStep(edge0, edge1, x) or (start, end, t, shift)
+        BuiltInLerp,        // math::lerp(a, b, t) or (start, end, t, shift)
+        BuiltInSlerp,       // math::slerp(a, b, t)
     };
 
     enum earithmeticop_t : u8
@@ -114,6 +114,8 @@ namespace ncore
     static const u32 AddressIndexMask = 0x00ffffffU;
 
     u32 value_kind_size(evaluekind_t kind);
+    bool value_kind_is_32_bit(evaluekind_t kind);
+    bool value_kind_is_64_bit(evaluekind_t kind);
 
     instruction_t make_instruction(eopcode_t opcode, evaluekind_t kind);
     instruction_t make_arithmetic_instruction(evaluekind_t kind, earithmeticop_t operation);

@@ -724,6 +724,22 @@ func TestParseReportsReservedExpressionPunctuators(t *testing.T) {
 	}
 }
 
+func TestParseQualifiedBuiltInCall(t *testing.T) {
+	tokens, err := Tokenize(`float script_main() { return math::sin(0.0f); }`)
+	if err != nil {
+		t.Fatalf("Tokenize failed: %v", err)
+	}
+	program, err := Parse(tokens)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	ret := program.Functions[0].Body.Statements[0].(*AstReturnStmt)
+	call, ok := ret.Value.(*AstCallExpr)
+	if !ok || call.Callee != "math::sin" {
+		t.Fatalf("expected math::sin call, got %#v", ret.Value)
+	}
+}
+
 func TestParseLocalDeclarations(t *testing.T) {
 	script := `
 int script_main() {

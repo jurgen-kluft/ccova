@@ -114,16 +114,22 @@ namespace ncore
         write_le_u64(memory->m_data + offset, value);
     }
 
-    void append_bits(segment_memory_t* memory, evaluekind_t kind, u64 bits)
+    void append_bits32(segment_memory_t* memory, evaluekind_t kind, u32 bits)
     {
+        ASSERT(value_kind_is_32_bit(kind));
         switch (value_kind_size(kind))
         {
             case 1: append_u8(memory, (u8)bits); break;
             case 2: append_u16(memory, (u16)bits); break;
-            case 4: append_u32(memory, (u32)bits); break;
-            case 8: append_u64(memory, bits); break;
+            case 4: append_u32(memory, bits); break;
             default: ASSERT(false); break;
         }
+    }
+
+    void append_bits64(segment_memory_t* memory, evaluekind_t kind, u64 bits)
+    {
+        ASSERT(value_kind_is_64_bit(kind));
+        append_u64(memory, bits);
     }
 
     void append_from(segment_memory_t* memory, const segment_memory_t* source, u32 offset, u32 size)
@@ -163,16 +169,22 @@ namespace ncore
         return value;
     }
 
-    u64 truncate_bits(segment_memory_t* memory, evaluekind_t kind)
+    u32 truncate_bits32(segment_memory_t* memory, evaluekind_t kind)
     {
+        ASSERT(value_kind_is_32_bit(kind));
         switch (value_kind_size(kind))
         {
             case 1: return truncate_u8(memory);
             case 2: return truncate_u16(memory);
             case 4: return truncate_u32(memory);
-            case 8: return truncate_u64(memory);
             default: ASSERT(false); return 0;
         }
+    }
+
+    u64 truncate_bits64(segment_memory_t* memory, evaluekind_t kind)
+    {
+        ASSERT(value_kind_is_64_bit(kind));
+        return truncate_u64(memory);
     }
 
     void truncate_to(segment_memory_t* memory, segment_memory_t* destination, u32 offset, u32 size)

@@ -45,8 +45,8 @@ namespace
     static void extern_add_one(void* host_context, vm_t* vm, u32 import_id)
     {
         *(u32*)host_context = import_id;
-        const u32 value = (u32)pop_bits(vm, KindUint32);
-        push_bits(vm, KindUint32, value + 1);
+        const u32 value = pop_bits32(vm, KindUint32);
+        push_bits32(vm, KindUint32, value + 1);
     }
 }
 
@@ -80,7 +80,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
             run_vm(&vm, &program);
 
-            CHECK_EQUAL((u64)1, pop_bits(&vm, KindBool));
+            CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
             CHECK_EQUAL((u32)0, vm.m_call_frame_count);
         }
 
@@ -115,7 +115,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
             run_vm(&vm, &program);
 
-            CHECK_EQUAL((u64)(u32)-16, pop_bits(&vm, KindInt32));
+            CHECK_EQUAL((u32)-16, pop_bits32(&vm, KindInt32));
         }
 
         UNITTEST_TEST(math_builtins)
@@ -144,9 +144,43 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
             run_vm(&vm, &program);
 
-            CHECK_EQUAL((f64)8.0, bits_to_f64(pop_bits(&vm, KindFloat64)));
-            CHECK_EQUAL((f32)3.0f, bits_to_f32((u32)pop_bits(&vm, KindFloat32)));
-            CHECK_EQUAL((u64)7, pop_bits(&vm, KindInt32));
+            CHECK_EQUAL((f64)8.0, bits_to_f64(pop_bits64(&vm, KindFloat64)));
+            CHECK_EQUAL((f32)3.0f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
+            CHECK_EQUAL((u32)7, pop_bits32(&vm, KindInt32));
+        }
+
+        UNITTEST_TEST(typed_min_max_builtins)
+        {
+            byte text_storage[128] = {};
+            segment_memory_t text = {text_storage, 0, 128};
+            emit_instruction(&text, make_instruction(OpPush, KindInt16));
+            append_u16(&text, (u16)(s16)-7);
+            emit_instruction(&text, make_instruction(OpPush, KindInt16));
+            append_u16(&text, 3);
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInMin, KindInt16)));
+            emit_push_u32(&text, KindUint32, 4000000000U);
+            emit_push_u32(&text, KindUint32, 17U);
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInMax, KindUint32)));
+            emit_instruction(&text, make_instruction(OpPush, KindFloat64));
+            append_u64(&text, f64_to_bits(-2.5));
+            emit_instruction(&text, make_instruction(OpPush, KindFloat64));
+            append_u64(&text, f64_to_bits(9.5));
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInMax, KindFloat64)));
+            emit_instruction(&text, make_instruction(OpRet, KindNone));
+
+            const script_function_t functions[] = {{0, 0, 0, 0, KindVoid}};
+            linked_program_t program;
+            initialize_program(&program, text_storage, text.m_size, functions, 1);
+
+            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
+            call_frame_t call_frames[8] = {};
+            vm_t vm;
+            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
+            run_vm(&vm, &program);
+
+            CHECK_EQUAL((f64)9.5, bits_to_f64(pop_bits64(&vm, KindFloat64)));
+            CHECK_EQUAL((u32)4000000000U, pop_bits32(&vm, KindUint32));
+            CHECK_EQUAL((s16)-7, (s16)(u16)pop_bits32(&vm, KindInt16));
         }
 
         UNITTEST_TEST(address_offset_assign_and_dereference)
@@ -174,7 +208,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
             run_vm(&vm, &program);
 
-            CHECK_EQUAL((u64)0x12345678U, pop_bits(&vm, KindUint32));
+            CHECK_EQUAL((u32)0x12345678U, pop_bits32(&vm, KindUint32));
             CHECK_EQUAL((u32)0x12345678U, read_u32(&vm.m_memory, make_address(SegmentExtern, 4)));
         }
 
@@ -208,7 +242,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
             run_vm(&vm, &program);
 
-            CHECK_EQUAL((u64)42, pop_bits(&vm, KindUint32));
+            CHECK_EQUAL((u32)42, pop_bits32(&vm, KindUint32));
         }
 
         UNITTEST_TEST(script_call_with_parameter)
@@ -242,7 +276,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
             run_vm(&vm, &program);
 
-            CHECK_EQUAL((u64)8, pop_bits(&vm, KindInt32));
+            CHECK_EQUAL((u32)8, pop_bits32(&vm, KindInt32));
             CHECK_EQUAL((u32)0, vm.m_frame_top);
         }
 
@@ -268,7 +302,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             run_vm(&vm, &program);
 
             CHECK_EQUAL((u32)7, import_id);
-            CHECK_EQUAL((u64)10, pop_bits(&vm, KindUint32));
+            CHECK_EQUAL((u32)10, pop_bits32(&vm, KindUint32));
         }
     }
 }

@@ -173,7 +173,7 @@ The tokenizer emits physical newline tokens for tooling. The parser ignores them
 
 ## Recognized Punctuators
 
-The tokenizer recognizes ordinary C-like punctuators, including `[]`, `.`, `->`, `?`, `++`, `--`, `...`, `#`, and `##`, plus `::`. Fixed-array indexing and `.` member access are implemented. Pointer member access, qualified names, ternary expressions, increment/decrement, variadics, and preprocessing remain unsupported. ISO C digraph aliases are not recognized.
+The tokenizer recognizes ordinary C-like punctuators, including `[]`, `.`, `->`, `?`, `++`, `--`, `...`, `#`, and `##`, plus `::`. Fixed-array indexing, `.` member access, and qualified built-in calls such as `math::sin(value)` are implemented. Other qualified names, pointer member access, ternary expressions, increment/decrement, variadics, and preprocessing remain unsupported. ISO C digraph aliases are not recognized.
 
 ## Top-Level Declarations
 
@@ -529,15 +529,32 @@ float64 script_main() {
 
 The following functions are implicit built-ins and do not require declarations:
 
-- `abs(value)`
-- `sin(value)`, `cos(value)`, and `tan(value)`
-- `asin(value)`, `acos(value)`, and `atan(value)`
-- `pow(base, exponent)`
-- `sqrt(value)`
+- `math::abs(value)`
+- `math::sin(value)`, `math::cos(value)`, and `math::tan(value)`
+- `math::asin(value)`, `math::acos(value)`, and `math::atan(value)`
+- `math::pow(base, exponent)`
+- `math::sqrt(value)`
+- `math::min(left, right)` and `math::max(left, right)`
+- `math::map(value, inMin, inMax, outMin, outMax)`
+- `math::clamp(value, min, max)`
+- `math::smoothStep(edge0, edge1, x)` and `math::lerp(a, b, t)`
+- `math::smoothStep(start, end, t, shift)` and `math::lerp(start, end, t, shift)`
+- `math::slerp(a, b, t)`
+- `math::random()`
 
 `abs` preserves the input numeric type. For the minimum value of a signed integer type, the result wraps to the same minimum value. Unsigned and `byte` inputs are unchanged.
 
-The other built-ins preserve `float32` when all operands are `float32`; `float64` inputs produce `float64`. Integer operands are promoted to `float64`. Mixed `pow` operands use normal numeric promotion, with an integer-only result promoted to `float64`. Boolean arguments are rejected.
+`min` and `max` preserve matching operand types, including narrow integers. Mixed numeric operands use normal numeric promotion. Signed, unsigned, `float32`, and `float64` variants are supported.
+
+`map` and `clamp` accept all non-boolean numeric types and promote mixed arguments to one result type. `map` sorts its input and output bounds independently, requires distinct input bounds, and clamps the input value to its input range before mapping. Equal output bounds produce that constant value. `clamp` does not sort its bounds and requires `min <= max`.
+
+The three-argument interpolation functions use `float32` unless an operand is 64-bit, in which case they use `float64`. `smoothStep` clamps its result to the endpoint range. `slerp` is available only in this floating-point form.
+
+The four-argument `smoothStep` and `lerp` overloads use signed fixed-point `int32` or `int64` values. `t` ranges from zero to `1 << shift`; narrower signed inputs promote to `int32`, and `shift` is converted to `uint8`.
+
+`random` returns a nonnegative `int32` from deterministic VM-owned state. Hosts can set the sequence through `set_random_seed(vm, seed)` in C++ or `VM.SetRandomSeed(seed)` in Go. Resetting or rerunning the VM rewinds the sequence to its configured seed.
+
+Trigonometric functions, `sqrt`, and `pow` use `float32` unless an operand is 64-bit, in which case they use `float64`. Boolean arguments are rejected.
 
 Trigonometric arguments and results use radians. Invalid floating-point domains, such as `sqrt(-1)` or `asin(2)`, follow IEEE 754 and produce NaN. Built-in names are reserved and cannot be redeclared.
 

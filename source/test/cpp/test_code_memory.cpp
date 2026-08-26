@@ -26,9 +26,9 @@ UNITTEST_SUITE_BEGIN(cova_code_memory)
 
             CHECK_EQUAL((u32)OpPush, (u32)instruction_opcode(read_instruction(&memory, &offset)));
             CHECK_EQUAL((u32)2, offset);
-            CHECK_EQUAL((u64)0xa5b6c7d8U, read_immediate(&memory, &offset, KindUint32));
+            CHECK_EQUAL((u32)0xa5b6c7d8U, read_immediate32(&memory, &offset, KindUint32));
             CHECK_EQUAL((u32)6, offset);
-            CHECK_EQUAL((u64)0x0123456789abcdefULL, read_immediate(&memory, &offset, KindUint64));
+            CHECK_EQUAL((u64)0x0123456789abcdefULL, read_immediate64(&memory, &offset, KindUint64));
             CHECK_EQUAL((u32)14, offset);
         }
     }

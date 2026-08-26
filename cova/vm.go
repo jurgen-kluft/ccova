@@ -22,7 +22,13 @@ type VM struct {
 	fault            VMFaultInfo
 	instructionPC    uint32
 	hasInstructionPC bool
+	randomSeed       uint64
+	randomS0         uint64
+	randomS1         uint64
 }
+
+const defaultRandomSeed uint64 = 0x1234567890abcdef
+const randomStateSeed uint64 = 6364136223846793005
 
 type VMConfig struct {
 	FrameCapacity     uint32
@@ -42,11 +48,35 @@ func NewVMWithConfig(config VMConfig) *VM {
 	if config.CallFrameCapacity < 1 {
 		config.CallFrameCapacity = 1
 	}
-	return &VM{
+	vm := &VM{
 		memory:     NewProgramMemory(0, 0, 0, 0, config.FrameCapacity, config.StackCapacity),
 		callFrames: make([]callFrame, config.CallFrameCapacity),
 		fault:      noVMFault(),
 	}
+	vm.SetRandomSeed(defaultRandomSeed)
+	return vm
+}
+
+func (vm *VM) nextRandom() uint64 {
+	s1 := vm.randomS0
+	s0 := vm.randomS1
+	result := s0 + s1
+	vm.randomS0 = s0
+	s1 ^= s1 << 23
+	vm.randomS1 = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5)
+	return result
+}
+
+func (vm *VM) resetRandom() {
+	vm.randomS0 = vm.randomSeed + 6364136223846793
+	vm.randomS1 = randomStateSeed
+	vm.nextRandom()
+	vm.nextRandom()
+}
+
+func (vm *VM) SetRandomSeed(seed uint64) {
+	vm.randomSeed = seed
+	vm.resetRandom()
 }
 
 func (vm *VM) AllocateExternMemory(size uint32) {
@@ -268,6 +298,7 @@ func (vm *VM) Reset() VMStatus {
 	}
 	vm.callFrameTop = 0
 	vm.frameTop = 0
+	vm.resetRandom()
 
 	entryPoint := program.EntryPoint
 	if entryPoint >= uint32(len(program.Functions)) {
@@ -458,6 +489,24 @@ func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 	if operation == BuiltInAbs {
 		return vm.executeBuiltInAbs(kind)
 	}
+	if operation == BuiltInMin || operation == BuiltInMax {
+		return vm.executeBuiltInMinMax(operation, kind)
+	}
+	if operation == BuiltInMap {
+		return vm.executeBuiltInMap(kind)
+	}
+	if operation == BuiltInClamp {
+		return vm.executeBuiltInClamp(kind)
+	}
+	if operation == BuiltInRandom {
+		if kind != KindInt32 {
+			return VMStatusInvalidValueKind
+		}
+		return vm.PushBits(kind, vm.nextRandom()&0x7fffffff)
+	}
+	if (operation == BuiltInLerp || operation == BuiltInSmoothStep) && (kind == KindInt32 || kind == KindInt64) {
+		return vm.executeBuiltInFixedPoint(operation, kind)
+	}
 	if kind != KindFloat32 && kind != KindFloat64 {
 		return VMStatusInvalidValueKind
 	}
@@ -480,6 +529,8 @@ func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 		apply = math.Atan
 	case BuiltInSqrt:
 		apply = math.Sqrt
+	case BuiltInSmoothStep, BuiltInLerp, BuiltInSlerp:
+		return vm.executeBuiltInFloatInterpolation(operation, kind)
 	default:
 		return VMStatusInvalidOpcode
 	}
@@ -495,6 +546,254 @@ func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 		return status
 	}
 	return vm.PushFloat64(apply(value))
+}
+
+type orderedNumber interface {
+	int32 | int64 | uint32 | uint64 | float32 | float64
+}
+
+func clampOrdered[T orderedNumber](value, low, high T) (T, bool) {
+	if !(low <= high) {
+		return 0, false
+	}
+	if value < low {
+		return low, true
+	}
+	if value > high {
+		return high, true
+	}
+	return value, true
+}
+
+func mapOrdered[T orderedNumber](value, inLow, inHigh, outLow, outHigh T) (T, bool) {
+	if inLow > inHigh {
+		inLow, inHigh = inHigh, inLow
+	}
+	if outLow > outHigh {
+		outLow, outHigh = outHigh, outLow
+	}
+	if !(inLow < inHigh) {
+		return 0, false
+	}
+	value, _ = clampOrdered(value, inLow, inHigh)
+	return (value-inLow)*(outHigh-outLow)/(inHigh-inLow) + outLow, true
+}
+
+func (vm *VM) popBuiltInBits(kind ValueKind, count int) ([]uint64, VMStatus) {
+	values := make([]uint64, count)
+	for index := count - 1; index >= 0; index-- {
+		bits, status := vm.PopBits(kind)
+		if status != VMStatusOK {
+			return nil, status
+		}
+		values[index] = bits
+	}
+	return values, VMStatusOK
+}
+
+func (vm *VM) executeBuiltInMap(kind ValueKind) VMStatus {
+	values, status := vm.popBuiltInBits(kind, 5)
+	if status != VMStatusOK {
+		return status
+	}
+	var result uint64
+	valid := true
+	switch kind {
+	case KindByte, KindUint8:
+		mapped, ok := mapOrdered(uint32(uint8(values[0])), uint32(uint8(values[1])), uint32(uint8(values[2])), uint32(uint8(values[3])), uint32(uint8(values[4])))
+		result, valid = uint64(uint8(mapped)), ok
+	case KindInt8:
+		mapped, ok := mapOrdered(int32(int8(values[0])), int32(int8(values[1])), int32(int8(values[2])), int32(int8(values[3])), int32(int8(values[4])))
+		result, valid = uint64(uint8(int8(mapped))), ok
+	case KindInt16:
+		mapped, ok := mapOrdered(int32(int16(values[0])), int32(int16(values[1])), int32(int16(values[2])), int32(int16(values[3])), int32(int16(values[4])))
+		result, valid = uint64(uint16(int16(mapped))), ok
+	case KindInt32:
+		mapped, ok := mapOrdered(int32(values[0]), int32(values[1]), int32(values[2]), int32(values[3]), int32(values[4]))
+		result, valid = uint64(uint32(mapped)), ok
+	case KindInt64:
+		mapped, ok := mapOrdered(int64(values[0]), int64(values[1]), int64(values[2]), int64(values[3]), int64(values[4]))
+		result, valid = uint64(mapped), ok
+	case KindUint16:
+		mapped, ok := mapOrdered(uint32(uint16(values[0])), uint32(uint16(values[1])), uint32(uint16(values[2])), uint32(uint16(values[3])), uint32(uint16(values[4])))
+		result, valid = uint64(uint16(mapped)), ok
+	case KindUint32:
+		mapped, ok := mapOrdered(uint32(values[0]), uint32(values[1]), uint32(values[2]), uint32(values[3]), uint32(values[4]))
+		result, valid = uint64(mapped), ok
+	case KindUint64:
+		result, valid = mapOrdered(values[0], values[1], values[2], values[3], values[4])
+	case KindFloat32:
+		mapped, ok := mapOrdered(math.Float32frombits(uint32(values[0])), math.Float32frombits(uint32(values[1])), math.Float32frombits(uint32(values[2])), math.Float32frombits(uint32(values[3])), math.Float32frombits(uint32(values[4])))
+		result, valid = uint64(math.Float32bits(mapped)), ok
+	case KindFloat64:
+		mapped, ok := mapOrdered(math.Float64frombits(values[0]), math.Float64frombits(values[1]), math.Float64frombits(values[2]), math.Float64frombits(values[3]), math.Float64frombits(values[4]))
+		result, valid = math.Float64bits(mapped), ok
+	default:
+		return VMStatusInvalidValueKind
+	}
+	if !valid {
+		return VMStatusDivisionByZero
+	}
+	return vm.PushBits(kind, result)
+}
+
+func (vm *VM) executeBuiltInClamp(kind ValueKind) VMStatus {
+	values, status := vm.popBuiltInBits(kind, 3)
+	if status != VMStatusOK {
+		return status
+	}
+	var result uint64
+	valid := true
+	switch kind {
+	case KindByte, KindUint8:
+		clamped, ok := clampOrdered(uint32(uint8(values[0])), uint32(uint8(values[1])), uint32(uint8(values[2])))
+		result, valid = uint64(uint8(clamped)), ok
+	case KindInt8:
+		clamped, ok := clampOrdered(int32(int8(values[0])), int32(int8(values[1])), int32(int8(values[2])))
+		result, valid = uint64(uint8(int8(clamped))), ok
+	case KindInt16:
+		clamped, ok := clampOrdered(int32(int16(values[0])), int32(int16(values[1])), int32(int16(values[2])))
+		result, valid = uint64(uint16(int16(clamped))), ok
+	case KindInt32:
+		clamped, ok := clampOrdered(int32(values[0]), int32(values[1]), int32(values[2]))
+		result, valid = uint64(uint32(clamped)), ok
+	case KindInt64:
+		clamped, ok := clampOrdered(int64(values[0]), int64(values[1]), int64(values[2]))
+		result, valid = uint64(clamped), ok
+	case KindUint16:
+		clamped, ok := clampOrdered(uint32(uint16(values[0])), uint32(uint16(values[1])), uint32(uint16(values[2])))
+		result, valid = uint64(uint16(clamped)), ok
+	case KindUint32:
+		clamped, ok := clampOrdered(uint32(values[0]), uint32(values[1]), uint32(values[2]))
+		result, valid = uint64(clamped), ok
+	case KindUint64:
+		result, valid = clampOrdered(values[0], values[1], values[2])
+	case KindFloat32:
+		clamped, ok := clampOrdered(math.Float32frombits(uint32(values[0])), math.Float32frombits(uint32(values[1])), math.Float32frombits(uint32(values[2])))
+		result, valid = uint64(math.Float32bits(clamped)), ok
+	case KindFloat64:
+		clamped, ok := clampOrdered(math.Float64frombits(values[0]), math.Float64frombits(values[1]), math.Float64frombits(values[2]))
+		result, valid = math.Float64bits(clamped), ok
+	default:
+		return VMStatusInvalidValueKind
+	}
+	if !valid {
+		return VMStatusInvalidParameter
+	}
+	return vm.PushBits(kind, result)
+}
+
+func (vm *VM) executeBuiltInFloatInterpolation(operation BuiltInOperation, kind ValueKind) VMStatus {
+	pop := func() (float64, VMStatus) {
+		if kind == KindFloat32 {
+			value, status := vm.PopFloat32()
+			return float64(value), status
+		}
+		return vm.PopFloat64()
+	}
+	t, status := pop()
+	if status != VMStatusOK {
+		return status
+	}
+	b, status := pop()
+	if status != VMStatusOK {
+		return status
+	}
+	a, status := pop()
+	if status != VMStatusOK {
+		return status
+	}
+	var result float64
+	switch operation {
+	case BuiltInSmoothStep:
+		if t <= a {
+			result = 0
+		} else if t >= b {
+			result = 1
+		} else {
+			normalized := (t - a) / (b - a)
+			result = normalized * normalized * (3 - 2*normalized)
+		}
+	case BuiltInLerp:
+		result = a + (b-a)*t
+	case BuiltInSlerp:
+		theta := math.Acos(a * b)
+		if math.Abs(theta) < 0.00001 {
+			result = a
+		} else {
+			result = (math.Sin((1-t)*theta)*a + math.Sin(t*theta)*b) / math.Sin(theta)
+		}
+	default:
+		return VMStatusInvalidOpcode
+	}
+	if kind == KindFloat32 {
+		return vm.PushFloat32(float32(result))
+	}
+	return vm.PushFloat64(result)
+}
+
+func (vm *VM) executeBuiltInFixedPoint(operation BuiltInOperation, kind ValueKind) VMStatus {
+	shiftBits, status := vm.PopBits(KindUint8)
+	if status != VMStatusOK {
+		return status
+	}
+	shift := uint8(shiftBits)
+	tBits, status := vm.PopBits(kind)
+	if status != VMStatusOK {
+		return status
+	}
+	endBits, status := vm.PopBits(kind)
+	if status != VMStatusOK {
+		return status
+	}
+	startBits, status := vm.PopBits(kind)
+	if status != VMStatusOK {
+		return status
+	}
+	if kind == KindInt32 {
+		if shift >= 31 {
+			return VMStatusInvalidParameter
+		}
+		start, end, t := int32(startBits), int32(endBits), int32(tBits)
+		maxT := int32(1) << shift
+		if t <= 0 {
+			return vm.PushBits(kind, uint64(uint32(start)))
+		}
+		if t >= maxT {
+			return vm.PushBits(kind, uint64(uint32(end)))
+		}
+		if operation == BuiltInLerp {
+			return vm.PushBits(kind, uint64(uint32(start+((end-start)*t>>shift))))
+		}
+		curveShift := shift
+		if curveShift > 15 {
+			curveShift = 15
+		}
+		threeScaled, twoT := int64(3)<<curveShift, int64(t)<<1
+		smoothed := int32(int64(t) * int64(t) * (threeScaled - twoT) >> (curveShift * 2))
+		return vm.PushBits(kind, uint64(uint32(start+((end-start)*smoothed>>curveShift))))
+	}
+	if shift >= 63 {
+		return VMStatusInvalidParameter
+	}
+	start, end, t := int64(startBits), int64(endBits), int64(tBits)
+	maxT := int64(1) << shift
+	if t <= 0 {
+		return vm.PushBits(kind, uint64(start))
+	}
+	if t >= maxT {
+		return vm.PushBits(kind, uint64(end))
+	}
+	if operation == BuiltInLerp {
+		return vm.PushBits(kind, uint64(start+((end-start)*t>>shift)))
+	}
+	curveShift := shift
+	if curveShift > 15 {
+		curveShift = 15
+	}
+	threeScaled, twoT := int64(3)<<curveShift, t<<1
+	smoothed := t * t * (threeScaled - twoT) >> (curveShift * 2)
+	return vm.PushBits(kind, uint64(start+((end-start)*smoothed>>curveShift)))
 }
 
 func (vm *VM) executeBuiltInPow(kind ValueKind) VMStatus {
@@ -552,6 +851,55 @@ func (vm *VM) executeBuiltInAbs(kind ValueKind) VMStatus {
 		return VMStatusInvalidValueKind
 	}
 	return vm.PushBits(kind, bits)
+}
+
+func (vm *VM) executeBuiltInMinMax(operation BuiltInOperation, kind ValueKind) VMStatus {
+	rightBits, status := vm.PopBits(kind)
+	if status != VMStatusOK {
+		return status
+	}
+	leftBits, status := vm.PopBits(kind)
+	if status != VMStatusOK {
+		return status
+	}
+	chooseRight := false
+	switch kind {
+	case KindByte, KindUint8:
+		left, right := uint8(leftBits), uint8(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindInt8:
+		left, right := int8(leftBits), int8(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindInt16:
+		left, right := int16(leftBits), int16(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindInt32:
+		left, right := int32(leftBits), int32(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindInt64:
+		left, right := int64(leftBits), int64(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindUint16:
+		left, right := uint16(leftBits), uint16(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindUint32:
+		left, right := uint32(leftBits), uint32(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindUint64:
+		chooseRight = operation == BuiltInMin && rightBits < leftBits || operation == BuiltInMax && rightBits > leftBits
+	case KindFloat32:
+		left, right := math.Float32frombits(uint32(leftBits)), math.Float32frombits(uint32(rightBits))
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	case KindFloat64:
+		left, right := math.Float64frombits(leftBits), math.Float64frombits(rightBits)
+		chooseRight = operation == BuiltInMin && right < left || operation == BuiltInMax && right > left
+	default:
+		return VMStatusInvalidValueKind
+	}
+	if chooseRight {
+		return vm.PushBits(kind, rightBits)
+	}
+	return vm.PushBits(kind, leftBits)
 }
 
 func (vm *VM) clearFault() {

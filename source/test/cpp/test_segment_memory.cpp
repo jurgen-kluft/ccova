@@ -31,6 +31,27 @@ UNITTEST_SUITE_BEGIN(cova_segment_memory)
             CHECK_EQUAL((u32)0, segment.m_size);
         }
 
+        UNITTEST_TEST(bit_transport_preserves_compact_sizes)
+        {
+            byte             storage[32] = {};
+            segment_memory_t segment     = {storage, 0, 32};
+
+            append_bits32(&segment, KindInt8, 0x81U);
+            CHECK_EQUAL((u32)1, segment.m_size);
+            append_bits32(&segment, KindUint16, 0x2345U);
+            CHECK_EQUAL((u32)3, segment.m_size);
+            append_bits32(&segment, KindFloat32, 0x3f800000U);
+            CHECK_EQUAL((u32)7, segment.m_size);
+            append_bits64(&segment, KindUint64, 0x0123456789abcdefULL);
+            CHECK_EQUAL((u32)15, segment.m_size);
+
+            CHECK_EQUAL((u64)0x0123456789abcdefULL, truncate_bits64(&segment, KindUint64));
+            CHECK_EQUAL((u32)0x3f800000U, truncate_bits32(&segment, KindFloat32));
+            CHECK_EQUAL((u32)0x2345U, truncate_bits32(&segment, KindUint16));
+            CHECK_EQUAL((u32)0x81U, truncate_bits32(&segment, KindInt8));
+            CHECK_EQUAL((u32)0, segment.m_size);
+        }
+
         UNITTEST_TEST(read_write_and_copy)
         {
             byte             storage[32] = {};
