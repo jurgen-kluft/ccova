@@ -24,14 +24,14 @@ int script_main() { return used(); }
 		t.Fatalf("Compile failed: %v", err)
 	}
 	linker := NewLinker(ctx, 0, 3)
-	linked, err := linker.Link(program, compiled)
-	if err != nil {
-		t.Fatalf("Link failed: %v", err)
+	linked, success := linker.Link(program, compiled)
+	if !success {
+		t.Fatalf("Link failed")
 	}
 
 	var output bytes.Buffer
-	if err := linker.Report(&output, compiled, linked); err != nil {
-		t.Fatalf("Report failed: %v", err)
+	if success := linker.Report(&output, compiled, linked); !success {
+		t.Fatalf("Report failed")
 	}
 	if !strings.Contains(output.String(), "External Functions: 3 functions, 2 unused\n") {
 		t.Fatalf("unexpected external count:\n%s", output.String())
@@ -57,14 +57,14 @@ int script_main() { return first() + second(); }
 		t.Fatalf("Compile failed: %v", err)
 	}
 	linker := NewLinker(ctx, 0, 2)
-	linked, err := linker.Link(program, compiled)
-	if err != nil {
-		t.Fatalf("Link failed: %v", err)
+	linked, success := linker.Link(program, compiled)
+	if !success {
+		t.Fatalf("Link failed")
 	}
 
 	var output bytes.Buffer
-	if err := linker.Report(&output, compiled, linked); err != nil {
-		t.Fatalf("Report failed: %v", err)
+	if success := linker.Report(&output, compiled, linked); !success {
+		t.Fatalf("Report failed:\n%s", output.String())
 	}
 	if !strings.Contains(output.String(), "External Functions: 2 functions, 0 unused\n") {
 		t.Fatalf("unexpected external count:\n%s", output.String())
@@ -88,7 +88,7 @@ int script_main() { return 1; }
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	if _, err := NewLinker(ctx, 0, 1).Link(program, compiled); err == nil {
+	if _, success := NewLinker(ctx, 0, 1).Link(program, compiled); success {
 		t.Fatal("expected unused external function capacity error")
 	}
 }

@@ -107,9 +107,9 @@ void script_main() {
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(ctx, 16, 0).Link(program, compiled)
-	if err != nil {
-		t.Fatalf("Link failed: %v", err)
+	linked, success := NewLinker(ctx, 16, 0).Link(program, compiled)
+	if !success {
+		t.Fatalf("Link failed")
 	}
 	if linked.DebugSymbols == nil {
 		t.Fatal("expected linked debug symbols")

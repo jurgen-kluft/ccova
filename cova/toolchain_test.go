@@ -1275,9 +1275,9 @@ func mustLinkProgram(t *testing.T, script string, variableCapacity, functionCapa
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(ctx, variableCapacity, functionCapacity).Link(program, compiled)
-	if err != nil {
-		t.Fatalf("Link failed: %v", err)
+	linked, success := NewLinker(ctx, variableCapacity, functionCapacity).Link(program, compiled)
+	if !success {
+		t.Fatalf("Link failed")
 	}
 	return linked
 }

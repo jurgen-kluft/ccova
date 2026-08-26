@@ -23,9 +23,9 @@ func benchmarkLinkedProgram(b *testing.B, source string) *LinkedProgram {
 	if err != nil {
 		b.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(ctx, 0, 0).Link(program, compiled)
-	if err != nil {
-		b.Fatalf("Link failed: %v", err)
+	linked, success := NewLinker(ctx, 0, 0).Link(program, compiled)
+	if !success {
+		b.Fatalf("Link failed")
 	}
 	return linked
 }

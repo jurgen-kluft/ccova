@@ -44,9 +44,9 @@ void reduce_health(int delta) {
 	check(err)
 
 	linker := cova.NewLinker(ctx, len(externMemory), 1)
-	linked, err := linker.Link(program, compiled)
-	check(err)
-	check(linker.Report(os.Stdout, compiled, linked))
+	linked, success := linker.Link(program, compiled)
+	checkOK(ctx, success)
+	checkOK(ctx, linker.Report(os.Stdout, compiled, linked))
 
 	vm := cova.NewVM(256)
 	vm.BindExternBlock(externMemory)

@@ -158,9 +158,9 @@ func runOptimizerTestProgram(t *testing.T, source string, optimize bool) int32 {
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(ctx, 0, 0).Link(program, compiled)
-	if err != nil {
-		t.Fatalf("Link failed: %v", err)
+	linked, success := NewLinker(ctx, 0, 0).Link(program, compiled)
+	if !success {
+		t.Fatalf("Link failed")
 	}
 	vm := NewVM(testFrameCapacityBytes)
 	if status := vm.Run(linked); status != VMStatusOK {
