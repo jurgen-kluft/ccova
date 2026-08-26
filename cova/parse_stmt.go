@@ -1,11 +1,9 @@
 package cova
 
-import "fmt"
-
-func (core *parserCore) parseBlock() (*AstBlockStmt, error) {
+func (core *parserCore) parseBlock() (*AstBlockStmt, bool) {
 	line := core.peek().Line
-	if _, err := core.expect(TokLBrace); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokLBrace); !ok {
+		return nil, false
 	}
 
 	block := &AstBlockStmt{Line: line}
@@ -13,20 +11,20 @@ func (core *parserCore) parseBlock() (*AstBlockStmt, error) {
 		if core.isEOF() {
 			return nil, core.errorf(core.peek(), "expected closing brace")
 		}
-		stmt, err := core.parseStatement()
-		if err != nil {
-			return nil, err
+		stmt, ok := core.parseStatement()
+		if !ok {
+			return nil, false
 		}
 		block.Statements = append(block.Statements, stmt)
 	}
 
-	if _, err := core.expect(TokRBrace); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokRBrace); !ok {
+		return nil, false
 	}
-	return block, nil
+	return block, true
 }
 
-func (core *parserCore) parseStatement() (AstStmtNode, error) {
+func (core *parserCore) parseStatement() (AstStmtNode, bool) {
 	token := core.peek()
 	if token.Kind == TokLBrace {
 		return core.parseBlock()
@@ -51,191 +49,191 @@ func (core *parserCore) parseStatement() (AstStmtNode, error) {
 	}
 	if token.Kind == TokBreak {
 		core.pos++
-		if _, err := core.expect(TokSemicolon); err != nil {
-			return nil, err
+		if _, ok := core.expect(TokSemicolon); !ok {
+			return nil, false
 		}
-		return &AstBreakStmt{Line: token.Line}, nil
+		return &AstBreakStmt{Line: token.Line}, true
 	}
 	if token.Kind == TokContinue {
 		core.pos++
-		if _, err := core.expect(TokSemicolon); err != nil {
-			return nil, err
+		if _, ok := core.expect(TokSemicolon); !ok {
+			return nil, false
 		}
-		return &AstContinueStmt{Line: token.Line}, nil
+		return &AstContinueStmt{Line: token.Line}, true
 	}
 
 	line := token.Line
-	expr, err := core.parseExpression()
-	if err != nil {
-		return nil, err
+	expr, ok := core.parseExpression()
+	if !ok {
+		return nil, false
 	}
 	if assignmentOp, ok := core.matchAssignmentOperator(); ok {
 		target, ok := expr.(AstLvalueNode)
 		if !ok {
 			return nil, core.errorf(token, "assignment target is not assignable")
 		}
-		value, err := core.parseExpression()
-		if err != nil {
-			return nil, err
+		value, ok := core.parseExpression()
+		if !ok {
+			return nil, false
 		}
-		if _, err := core.expect(TokSemicolon); err != nil {
-			return nil, err
+		if _, ok := core.expect(TokSemicolon); !ok {
+			return nil, false
 		}
-		return &AstAssignStmt{Target: target, Op: assignmentOp, Value: value, Line: line}, nil
+		return &AstAssignStmt{Target: target, Op: assignmentOp, Value: value, Line: line}, true
 	}
-	if _, err := core.expect(TokSemicolon); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokSemicolon); !ok {
+		return nil, false
 	}
-	return &AstExprStmt{Expr: expr, Line: line}, nil
+	return &AstExprStmt{Expr: expr, Line: line}, true
 }
 
-func (core *parserCore) parseLocalDeclStmt() (AstStmtNode, error) {
+func (core *parserCore) parseLocalDeclStmt() (AstStmtNode, bool) {
 	line := core.peek().Line
-	typ, err := core.parseType()
-	if err != nil {
-		return nil, err
+	typ, ok := core.parseType()
+	if !ok {
+		return nil, false
 	}
-	nameToken, err := core.expect(TokIdent)
-	if err != nil {
-		return nil, err
+	nameToken, ok := core.expect(TokIdent)
+	if !ok {
+		return nil, false
 	}
 	if typ.Kind == TypeVoid {
-		return nil, fmt.Errorf("syntax error on line %d: local variable %q cannot have type void", line, nameToken.Text)
+		return nil, core.errorf(nameToken, "local variable \""+nameToken.Text+"\" cannot have type void")
 	}
-	typ, err = core.parseArrayDeclarator(typ)
-	if err != nil {
-		return nil, err
+	typ, ok = core.parseArrayDeclarator(typ)
+	if !ok {
+		return nil, false
 	}
 	var initializer AstExprNode
 	if core.match(TokAssign) {
-		initializer, err = core.parseExpression()
-		if err != nil {
-			return nil, err
+		initializer, ok = core.parseExpression()
+		if !ok {
+			return nil, false
 		}
 	}
-	if _, err := core.expect(TokSemicolon); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokSemicolon); !ok {
+		return nil, false
 	}
-	return &AstLocalDeclStmt{Type: typ, Name: nameToken.Text, Initializer: initializer, Line: line}, nil
+	return &AstLocalDeclStmt{Type: typ, Name: nameToken.Text, Initializer: initializer, Line: line}, true
 }
 
-func (core *parserCore) parseIfStmt() (AstStmtNode, error) {
+func (core *parserCore) parseIfStmt() (AstStmtNode, bool) {
 	line := core.peek().Line
-	if _, err := core.expect(TokIf); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokIf); !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokLParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokLParen); !ok {
+		return nil, false
 	}
-	condition, err := core.parseExpression()
-	if err != nil {
-		return nil, err
+	condition, ok := core.parseExpression()
+	if !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokRParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokRParen); !ok {
+		return nil, false
 	}
-	thenStmt, err := core.parseStatement()
-	if err != nil {
-		return nil, err
+	thenStmt, ok := core.parseStatement()
+	if !ok {
+		return nil, false
 	}
 	var elseStmt AstStmtNode
 	if core.peek().Kind == TokElse {
 		core.pos++
-		elseStmt, err = core.parseStatement()
-		if err != nil {
-			return nil, err
+		elseStmt, ok = core.parseStatement()
+		if !ok {
+			return nil, false
 		}
 	}
-	return &AstIfStmt{Condition: condition, Then: thenStmt, Else: elseStmt, Line: line}, nil
+	return &AstIfStmt{Condition: condition, Then: thenStmt, Else: elseStmt, Line: line}, true
 }
 
-func (core *parserCore) parseWhileStmt() (AstStmtNode, error) {
+func (core *parserCore) parseWhileStmt() (AstStmtNode, bool) {
 	line := core.peek().Line
-	if _, err := core.expect(TokWhile); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokWhile); !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokLParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokLParen); !ok {
+		return nil, false
 	}
-	condition, err := core.parseExpression()
-	if err != nil {
-		return nil, err
+	condition, ok := core.parseExpression()
+	if !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokRParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokRParen); !ok {
+		return nil, false
 	}
-	body, err := core.parseStatement()
-	if err != nil {
-		return nil, err
+	body, ok := core.parseStatement()
+	if !ok {
+		return nil, false
 	}
-	return &AstWhileStmt{Condition: condition, Body: body, Line: line}, nil
+	return &AstWhileStmt{Condition: condition, Body: body, Line: line}, true
 }
 
-func (core *parserCore) parseForStmt() (AstStmtNode, error) {
+func (core *parserCore) parseForStmt() (AstStmtNode, bool) {
 	line := core.peek().Line
-	if _, err := core.expect(TokFor); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokFor); !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokLParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokLParen); !ok {
+		return nil, false
 	}
 	var init AstStmtNode
 	if core.peek().Kind != TokSemicolon {
-		stmt, err := core.parseForClauseStatement()
-		if err != nil {
-			return nil, err
+		stmt, ok := core.parseForClauseStatement()
+		if !ok {
+			return nil, false
 		}
 		init = stmt
 	}
-	if _, err := core.expect(TokSemicolon); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokSemicolon); !ok {
+		return nil, false
 	}
 	var condition AstExprNode
 	if core.peek().Kind != TokSemicolon {
-		expr, err := core.parseExpression()
-		if err != nil {
-			return nil, err
+		expr, ok := core.parseExpression()
+		if !ok {
+			return nil, false
 		}
 		condition = expr
 	}
-	if _, err := core.expect(TokSemicolon); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokSemicolon); !ok {
+		return nil, false
 	}
 	var post AstStmtNode
 	if core.peek().Kind != TokRParen {
-		stmt, err := core.parseForClauseStatement()
-		if err != nil {
-			return nil, err
+		stmt, ok := core.parseForClauseStatement()
+		if !ok {
+			return nil, false
 		}
 		post = stmt
 	}
-	if _, err := core.expect(TokRParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokRParen); !ok {
+		return nil, false
 	}
-	body, err := core.parseStatement()
-	if err != nil {
-		return nil, err
+	body, ok := core.parseStatement()
+	if !ok {
+		return nil, false
 	}
-	return &AstForStmt{Init: init, Condition: condition, Post: post, Body: body, Line: line}, nil
+	return &AstForStmt{Init: init, Condition: condition, Post: post, Body: body, Line: line}, true
 }
 
-func (core *parserCore) parseSwitchStmt() (AstStmtNode, error) {
+func (core *parserCore) parseSwitchStmt() (AstStmtNode, bool) {
 	line := core.peek().Line
-	if _, err := core.expect(TokSwitch); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokSwitch); !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokLParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokLParen); !ok {
+		return nil, false
 	}
-	value, err := core.parseExpression()
-	if err != nil {
-		return nil, err
+	value, ok := core.parseExpression()
+	if !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokRParen); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokRParen); !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokLBrace); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokLBrace); !ok {
+		return nil, false
 	}
 	stmt := &AstSwitchStmt{Value: value, Line: line}
 	for core.peek().Kind != TokRBrace {
@@ -245,41 +243,41 @@ func (core *parserCore) parseSwitchStmt() (AstStmtNode, error) {
 		keyword := core.peek()
 		if keyword.Kind == TokCase {
 			core.pos++
-			caseValue, err := core.parseExpression()
-			if err != nil {
-				return nil, err
+			caseValue, ok := core.parseExpression()
+			if !ok {
+				return nil, false
 			}
-			if _, err := core.expect(TokColon); err != nil {
-				return nil, err
+			if _, ok := core.expect(TokColon); !ok {
+				return nil, false
 			}
-			caseBody, err := core.parseSwitchClauseBody()
-			if err != nil {
-				return nil, err
+			caseBody, ok := core.parseSwitchClauseBody()
+			if !ok {
+				return nil, false
 			}
 			stmt.Cases = append(stmt.Cases, AstSwitchCase{Value: caseValue, Body: caseBody, Line: keyword.Line})
 			continue
 		}
 		if keyword.Kind == TokDefault {
 			core.pos++
-			if _, err := core.expect(TokColon); err != nil {
-				return nil, err
+			if _, ok := core.expect(TokColon); !ok {
+				return nil, false
 			}
-			defaultBody, err := core.parseSwitchClauseBody()
-			if err != nil {
-				return nil, err
+			defaultBody, ok := core.parseSwitchClauseBody()
+			if !ok {
+				return nil, false
 			}
 			stmt.Default = defaultBody
 			continue
 		}
 		return nil, core.errorf(keyword, "expected case or default")
 	}
-	if _, err := core.expect(TokRBrace); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokRBrace); !ok {
+		return nil, false
 	}
-	return stmt, nil
+	return stmt, true
 }
 
-func (core *parserCore) parseSwitchClauseBody() ([]AstStmtNode, error) {
+func (core *parserCore) parseSwitchClauseBody() ([]AstStmtNode, bool) {
 	body := make([]AstStmtNode, 0, 4)
 	for {
 		token := core.peek()
@@ -289,34 +287,34 @@ func (core *parserCore) parseSwitchClauseBody() ([]AstStmtNode, error) {
 		if token.Kind == TokCase || token.Kind == TokDefault {
 			break
 		}
-		stmt, err := core.parseStatement()
-		if err != nil {
-			return nil, err
+		stmt, ok := core.parseStatement()
+		if !ok {
+			return nil, false
 		}
 		body = append(body, stmt)
 	}
-	return body, nil
+	return body, true
 }
 
-func (core *parserCore) parseForClauseStatement() (AstStmtNode, error) {
+func (core *parserCore) parseForClauseStatement() (AstStmtNode, bool) {
 	token := core.peek()
 	line := token.Line
-	expr, err := core.parseExpression()
-	if err != nil {
-		return nil, err
+	expr, ok := core.parseExpression()
+	if !ok {
+		return nil, false
 	}
 	if assignmentOp, ok := core.matchAssignmentOperator(); ok {
 		target, ok := expr.(AstLvalueNode)
 		if !ok {
 			return nil, core.errorf(token, "assignment target is not assignable")
 		}
-		value, err := core.parseExpression()
-		if err != nil {
-			return nil, err
+		value, ok := core.parseExpression()
+		if !ok {
+			return nil, false
 		}
-		return &AstAssignStmt{Target: target, Op: assignmentOp, Value: value, Line: line}, nil
+		return &AstAssignStmt{Target: target, Op: assignmentOp, Value: value, Line: line}, true
 	}
-	return &AstExprStmt{Expr: expr, Line: line}, nil
+	return &AstExprStmt{Expr: expr, Line: line}, true
 }
 
 func (core *parserCore) matchAssignmentOperator() (AssignOp, bool) {
@@ -335,20 +333,20 @@ var assignmentOps = map[TokenKind]AssignOp{
 	TokAndAssign: AssignBitwiseAnd, TokXorAssign: AssignBitwiseXor, TokOrAssign: AssignBitwiseOr,
 }
 
-func (core *parserCore) parseReturnStmt() (AstStmtNode, error) {
+func (core *parserCore) parseReturnStmt() (AstStmtNode, bool) {
 	line := core.peek().Line
-	if _, err := core.expect(TokReturn); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokReturn); !ok {
+		return nil, false
 	}
 	if core.match(TokSemicolon) {
-		return &AstReturnStmt{Line: line}, nil
+		return &AstReturnStmt{Line: line}, true
 	}
-	value, err := core.parseExpression()
-	if err != nil {
-		return nil, err
+	value, ok := core.parseExpression()
+	if !ok {
+		return nil, false
 	}
-	if _, err := core.expect(TokSemicolon); err != nil {
-		return nil, err
+	if _, ok := core.expect(TokSemicolon); !ok {
+		return nil, false
 	}
-	return &AstReturnStmt{Value: value, Line: line}, nil
+	return &AstReturnStmt{Value: value, Line: line}, true
 }

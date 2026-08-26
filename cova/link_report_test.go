@@ -14,19 +14,16 @@ extern(2) int dead_only();
 int dead() { return dead_only(); }
 int script_main() { return used(); }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linker := NewLinker(0, 3)
+	linker := NewLinker(ctx, 0, 3)
 	linked, err := linker.Link(program, compiled)
 	if err != nil {
 		t.Fatalf("Link failed: %v", err)
@@ -50,19 +47,16 @@ extern(0) int first();
 extern(1) int second();
 int script_main() { return first() + second(); }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linker := NewLinker(0, 2)
+	linker := NewLinker(ctx, 0, 2)
 	linked, err := linker.Link(program, compiled)
 	if err != nil {
 		t.Fatalf("Link failed: %v", err)
@@ -85,19 +79,16 @@ func TestLinkerStillValidatesUnusedExternalFunctionCapacity(t *testing.T) {
 extern(3) int unused();
 int script_main() { return 1; }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	if _, err := NewLinker(0, 1).Link(program, compiled); err == nil {
+	if _, err := NewLinker(ctx, 0, 1).Link(program, compiled); err == nil {
 		t.Fatal("expected unused external function capacity error")
 	}
 }

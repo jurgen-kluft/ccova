@@ -134,15 +134,12 @@ func TestMathBuiltInDiagnostics(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tokens, err := Tokenize(test.script)
-			if err != nil {
-				t.Fatalf("Tokenize failed: %v", err)
-			}
-			program, err := Parse(tokens)
-			if err != nil {
-				t.Fatalf("Parse failed: %v", err)
-			}
-			_, err = NewCompiler().Compile(program)
+			ctx := NewContext()
+			tokens := mustTokenize(t, ctx, test.script)
+			program := mustParseTokens(t, ctx, tokens)
+
+			var err error
+			_, err = NewCompiler(ctx).Compile(program)
 			if err == nil || !strings.Contains(err.Error(), test.wantError) {
 				t.Fatalf("Compile error = %v, want substring %q", err, test.wantError)
 			}

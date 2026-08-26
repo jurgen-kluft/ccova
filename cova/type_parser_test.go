@@ -7,15 +7,7 @@ import (
 
 func parseProgram(t *testing.T, script string) *AstProgramNode {
 	t.Helper()
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	return program
+	return mustParseScript(t, script)
 }
 
 func TestParseExpressions(t *testing.T) {
@@ -63,11 +55,9 @@ int script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	if _, err := Parse(tokens); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	if _, ok := Parse(ctx, tokens); ok {
 		t.Fatal("expected parser to reject local declaration in for initializer")
 	}
 }
@@ -167,14 +157,9 @@ float64 script_main(int input, byte tag) {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	if len(program.Decls) != 4 {
 		t.Fatalf("expected 4 top-level declarations, got %d", len(program.Decls))
 	}
@@ -252,10 +237,10 @@ void script_main() {
 
 func TestLookupNamedTypeAliases(t *testing.T) {
 	expected := map[string]*Type{
-		"char": Uint8Type,
-		"float": Float32Type,
+		"char":   Uint8Type,
+		"float":  Float32Type,
 		"double": Float64Type,
-		"i8": Int8Type, "i16": Int16Type, "i32": Int32Type, "i64": Int64Type,
+		"i8":     Int8Type, "i16": Int16Type, "i32": Int32Type, "i64": Int64Type,
 		"u8": Uint8Type, "u16": Uint16Type, "u32": Uint32Type, "u64": Uint64Type,
 		"f32": Float32Type, "f64": Float64Type,
 	}
@@ -270,13 +255,14 @@ func TestLookupNamedTypeAliases(t *testing.T) {
 }
 
 func TestStructTypePreservesNaturalLayoutAndNamedFields(t *testing.T) {
-	typ, err := NewStructType("sample_t", []StructField{
+	ctx := NewContext()
+	typ, ok := NewStructType(ctx, "sample_t", []StructField{
 		{Name: "first", Type: Uint8Type},
 		{Name: "second", Type: Uint32Type},
 		{Name: "third", Type: Uint16Type},
 	})
-	if err != nil {
-		t.Fatalf("NewStructType failed: %v", err)
+	if !ok {
+		t.Fatalf("NewStructType failed: %v", issueDescriptions(ctx))
 	}
 
 	if typ.Kind != TypeStruct || typ.Size != 12 || typ.Alignment() != 4 {
@@ -329,13 +315,14 @@ int script_main() {
 }
 
 func TestParseRejectsExplicitExternVariableOffset(t *testing.T) {
-	tokens, err := Tokenize("extern(4) int value;")
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, "extern(4) int value;")
+	if _, ok := Parse(ctx, tokens); ok {
+		t.Fatal("expected automatic-offset migration error")
 	}
-	_, err = Parse(tokens)
-	if err == nil || !strings.Contains(err.Error(), "offsets are automatic") {
-		t.Fatalf("expected automatic-offset migration error, got %v", err)
+	issues := issueDescriptions(ctx)
+	if len(issues) == 0 || !strings.Contains(issues[0], "offsets are automatic") {
+		t.Fatalf("expected automatic-offset migration error, got %v", issues)
 	}
 }
 
@@ -365,8 +352,9 @@ void script_main() { value.values[2] = 1; return; }
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := NewContext()
 			program := parseProgram(t, test.script)
-			_, err := NewCompiler().Compile(program)
+			_, err := NewCompiler(ctx).Compile(program)
 			if err == nil || !strings.Contains(err.Error(), test.message) {
 				t.Fatalf("expected %q compile error, got %v", test.message, err)
 			}
@@ -381,14 +369,9 @@ float64 script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	ret, ok := program.Functions[0].Body.Statements[0].(*AstReturnStmt)
 	if !ok {
 		t.Fatalf("expected return statement, got %T", program.Functions[0].Body.Statements[0])
@@ -418,14 +401,9 @@ float64 script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	statements := program.Functions[0].Body.Statements
 	checks := []struct {
 		index int
@@ -520,14 +498,9 @@ int script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	ret, ok := program.Functions[0].Body.Statements[0].(*AstReturnStmt)
 	if !ok {
 		t.Fatalf("expected return statement, got %T", program.Functions[0].Body.Statements[0])
@@ -580,14 +553,9 @@ int script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	ret, ok := program.Functions[0].Body.Statements[0].(*AstReturnStmt)
 	if !ok {
 		t.Fatalf("expected return statement, got %T", program.Functions[0].Body.Statements[0])
@@ -640,14 +608,9 @@ int script_main() {
 	return !~-a % 3;
 }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 
 	assignment, ok := program.Functions[0].Body.Statements[0].(*AstAssignStmt)
 	if !ok {
@@ -713,26 +676,22 @@ func TestParseReportsReservedExpressionPunctuators(t *testing.T) {
 	}
 	for _, test := range tests {
 		script := "int value; int script_main() { return " + test.expression + "; }"
-		tokens, err := Tokenize(script)
-		if err != nil {
-			t.Fatalf("Tokenize %q failed: %v", test.expression, err)
+		ctx := NewContext()
+		tokens := mustTokenize(t, ctx, script)
+		if _, ok := Parse(ctx, tokens); ok {
+			t.Fatalf("expected %q error for %q", test.message, test.expression)
 		}
-		_, err = Parse(tokens)
-		if err == nil || !strings.Contains(err.Error(), test.message) {
-			t.Fatalf("expected %q error for %q, got %v", test.message, test.expression, err)
+		issues := issueDescriptions(ctx)
+		if len(issues) == 0 || !strings.Contains(issues[0], test.message) {
+			t.Fatalf("expected %q error for %q, got %v", test.message, test.expression, issues)
 		}
 	}
 }
 
 func TestParseQualifiedBuiltInCall(t *testing.T) {
-	tokens, err := Tokenize(`float script_main() { return math::sin(0.0f); }`)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, `float script_main() { return math::sin(0.0f); }`)
+	program := mustParseTokens(t, ctx, tokens)
 	ret := program.Functions[0].Body.Statements[0].(*AstReturnStmt)
 	call, ok := ret.Value.(*AstCallExpr)
 	if !ok || call.Callee != "math::sin" {
@@ -753,14 +712,9 @@ int script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	statements := program.Functions[0].Body.Statements
 	countDecl, ok := statements[0].(*AstLocalDeclStmt)
 	if !ok {
@@ -817,11 +771,9 @@ void script_main() {
 
 func TestParseExternConstDeclarationRejected(t *testing.T) {
 	script := `extern(0) const uint8* asset_path;`
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	if _, err := Parse(tokens); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	if _, ok := Parse(ctx, tokens); ok {
 		t.Fatal("expected const extern declaration to fail")
 	}
 }
@@ -861,14 +813,9 @@ void script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
 	statements := program.Functions[0].Body.Statements
 	if _, ok := statements[0].(*AstWhileStmt); !ok {
 		t.Fatalf("expected first statement to be while, got %T", statements[0])

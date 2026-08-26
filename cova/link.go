@@ -6,12 +6,13 @@ import (
 )
 
 type Linker struct {
+	Ctx              *Context
 	VariableCapacity int
 	FunctionCapacity int
 }
 
-func NewLinker(variableCapacity, functionCapacity int) *Linker {
-	return &Linker{VariableCapacity: variableCapacity, FunctionCapacity: functionCapacity}
+func NewLinker(ctx *Context, variableCapacity, functionCapacity int) *Linker {
+	return &Linker{Ctx: ctx, VariableCapacity: variableCapacity, FunctionCapacity: functionCapacity}
 }
 
 // Report writes a size and symbol overview for a successfully linked program.

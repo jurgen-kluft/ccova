@@ -8,19 +8,22 @@ var benchmarkVMStatus VMStatus
 
 func benchmarkLinkedProgram(b *testing.B, source string) *LinkedProgram {
 	b.Helper()
-	tokens, err := Tokenize(source)
-	if err != nil {
-		b.Fatalf("Tokenize failed: %v", err)
+	ctx := NewContext()
+	tokens, ok := Tokenize(ctx, source)
+	if !ok {
+		b.Fatalf("Tokenize failed: %v", issueDescriptions(ctx))
 	}
-	program, err := Parse(tokens)
-	if err != nil {
-		b.Fatalf("Parse failed: %v", err)
+	program, ok := Parse(ctx, tokens)
+	if !ok {
+		b.Fatalf("Parse failed: %v", issueDescriptions(ctx))
 	}
-	compiled, err := NewCompiler().Compile(program)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		b.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(0, 0).Link(program, compiled)
+	linked, err := NewLinker(ctx, 0, 0).Link(program, compiled)
 	if err != nil {
 		b.Fatalf("Link failed: %v", err)
 	}

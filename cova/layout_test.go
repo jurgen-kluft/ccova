@@ -14,15 +14,12 @@ void script_main(int8 tag, uint64 mask) {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
@@ -71,15 +68,12 @@ void script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
@@ -104,19 +98,16 @@ void script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(16, 0).Link(program, compiled)
+	linked, err := NewLinker(ctx, 16, 0).Link(program, compiled)
 	if err != nil {
 		t.Fatalf("Link failed: %v", err)
 	}
@@ -144,15 +135,12 @@ void script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}

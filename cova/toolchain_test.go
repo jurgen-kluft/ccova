@@ -356,15 +356,10 @@ void script_main() {
 	return;
 }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil {
 		t.Fatal("expected compile failure for mutable pointer string initializer")
 	}
 }
@@ -377,15 +372,10 @@ int script_main() {
 	return answer;
 }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil {
 		t.Fatal("expected compile failure for const local assignment")
 	} else if !strings.Contains(err.Error(), "cannot assign to const variable") {
 		t.Fatalf("expected const assignment error, got %v", err)
@@ -401,15 +391,10 @@ int script_main() {
 	return limit;
 }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil {
 		t.Fatal("expected compile failure for const global assignment")
 	} else if !strings.Contains(err.Error(), "cannot assign to const variable") {
 		t.Fatalf("expected const assignment error, got %v", err)
@@ -424,15 +409,10 @@ void script_main() {
 	return;
 }
 `
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err != nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err != nil {
 		t.Fatalf("expected pointer-to-const reassignment to compile, got %v", err)
 	}
 }
@@ -694,15 +674,10 @@ int script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil {
 		t.Fatal("expected compile to reject duplicate local declarations in same scope")
 	}
 }
@@ -1053,15 +1028,10 @@ int script_main() {
 }
 `
 
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil {
 		t.Fatal("expected compile to reject recursive script call cycle")
 	}
 }
@@ -1296,19 +1266,16 @@ void script_main() {
 
 func mustLinkProgram(t *testing.T, script string, variableCapacity, functionCapacity int) *LinkedProgram {
 	t.Helper()
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(variableCapacity, functionCapacity).Link(program, compiled)
+	linked, err := NewLinker(ctx, variableCapacity, functionCapacity).Link(program, compiled)
 	if err != nil {
 		t.Fatalf("Link failed: %v", err)
 	}
@@ -1377,15 +1344,10 @@ int script_main() {
 }
 
 func TestCompileRejectsFloatBitwiseOperator(t *testing.T) {
-	tokens, err := Tokenize(`float script_main() { return 1.5 & 1; }`)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil || !strings.Contains(err.Error(), "requires integer operands") {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, `float script_main() { return 1.5 & 1; }`)
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil || !strings.Contains(err.Error(), "requires integer operands") {
 		t.Fatalf("expected integer operand compile error, got %v", err)
 	}
 }

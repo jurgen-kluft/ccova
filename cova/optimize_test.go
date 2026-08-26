@@ -2,7 +2,6 @@ package cova
 
 import (
 	"math"
-	"strings"
 	"testing"
 )
 
@@ -13,8 +12,9 @@ void script_main() {
 	folded = (120 + 10) * 2;
 }
 `)
-	if err := Optimize(program); err != nil {
-		t.Fatalf("Optimize failed: %v", err)
+	ctx := NewContext()
+	if !Optimize(ctx, program) {
+		t.Fatalf("Optimize failed: %v", issueDescriptions(ctx))
 	}
 	assignment := program.Functions[0].Body.Statements[0].(*AstAssignStmt)
 	literal, ok := assignment.Value.(*AstNumberLiteral)
@@ -32,8 +32,9 @@ void script_main() {
 	int result = (2 + 3 == 5) && (9 > 4);
 }
 `)
-	if err := Optimize(program); err != nil {
-		t.Fatalf("Optimize failed: %v", err)
+	ctx := NewContext()
+	if !Optimize(ctx, program) {
+		t.Fatalf("Optimize failed: %v", issueDescriptions(ctx))
 	}
 	declaration := program.Functions[0].Body.Statements[0].(*AstLocalDeclStmt)
 	literal, ok := declaration.Initializer.(*AstNumberLiteral)
@@ -48,8 +49,9 @@ void script_main() {
 	int result = false && (1 / 0);
 }
 `)
-	if err := Optimize(program); err != nil {
-		t.Fatalf("Optimize evaluated unreachable branch: %v", err)
+	ctx := NewContext()
+	if !Optimize(ctx, program) {
+		t.Fatalf("Optimize evaluated unreachable branch: %v", issueDescriptions(ctx))
 	}
 }
 
@@ -59,9 +61,9 @@ void script_main() {
 	int result = 1 / 0;
 }
 `)
-	err := Optimize(program)
-	if err == nil || !strings.Contains(err.Error(), "optimization error on line 3: division by zero") {
-		t.Fatalf("expected line-numbered division error, got %v", err)
+	ctx := NewContext()
+	if Optimize(ctx, program) || !hasIssueContaining(ctx, "optimization error on line 3: division by zero") {
+		t.Fatalf("expected line-numbered division error, got %v", issueDescriptions(ctx))
 	}
 }
 
@@ -73,14 +75,15 @@ void script_main() {
 	consume(1.25f + 2.5f);
 }
 `)
-	if err := Optimize(program); err != nil {
-		t.Fatalf("Optimize failed: %v", err)
+	ctx := NewContext()
+	if !Optimize(ctx, program) {
+		t.Fatalf("Optimize failed: %v", issueDescriptions(ctx))
 	}
 	global, ok := program.Decls[0].Initializer.(*AstNumberLiteral)
 	if !ok || global.IntValue != 14 {
 		t.Fatalf("expected folded global initializer 14, got %#v", program.Decls[0].Initializer)
 	}
-	if _, err := NewCompiler().Compile(program); err != nil {
+	if _, err := NewCompiler(ctx).Compile(program); err != nil {
 		t.Fatalf("Compile failed after folding global initializer: %v", err)
 	}
 	call := program.Functions[0].Body.Statements[0].(*AstExprStmt).Expr.(*AstCallExpr)
@@ -101,8 +104,9 @@ func TestOptimizePreservesFloatComparisonSemantics(t *testing.T) {
 			Initializer: &AstBinaryExpr{Op: "!=", Left: nan, Right: nan, Line: 1},
 		}}},
 	}}}
-	if err := Optimize(program); err != nil {
-		t.Fatalf("Optimize failed: %v", err)
+	ctx := NewContext()
+	if !Optimize(ctx, program) {
+		t.Fatalf("Optimize failed: %v", issueDescriptions(ctx))
 	}
 	literal := program.Functions[0].Body.Statements[0].(*AstLocalDeclStmt).Initializer.(*AstNumberLiteral)
 	if literal.IntValue != 1 {
@@ -127,24 +131,34 @@ void script_main() {
 }
 
 func TestOptimizeRejectsNilProgram(t *testing.T) {
-	if err := Optimize(nil); err == nil || err.Error() != "optimization error: program is nil" {
-		t.Fatalf("expected nil program error, got %v", err)
+	ctx := NewContext()
+	if Optimize(ctx, nil) || !hasIssueContaining(ctx, "optimization error: program is nil") {
+		t.Fatalf("expected nil program error, got %v", issueDescriptions(ctx))
+	}
+}
+
+func TestOptimizeSuccessIgnoresExistingContextErrors(t *testing.T) {
+	ctx := NewContext()
+	ctx.AddError("old error")
+	if !Optimize(ctx, &AstProgramNode{}) {
+		t.Fatalf("Optimize failed because of existing context errors: %v", issueDescriptions(ctx))
 	}
 }
 
 func runOptimizerTestProgram(t *testing.T, source string, optimize bool) int32 {
 	t.Helper()
+	ctx := NewContext()
 	program := parseOptimizerTestProgram(t, source)
 	if optimize {
-		if err := Optimize(program); err != nil {
-			t.Fatalf("Optimize failed: %v", err)
+		if !Optimize(ctx, program) {
+			t.Fatalf("Optimize failed: %v", issueDescriptions(ctx))
 		}
 	}
-	compiled, err := NewCompiler().Compile(program)
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
-	linked, err := NewLinker(0, 0).Link(program, compiled)
+	linked, err := NewLinker(ctx, 0, 0).Link(program, compiled)
 	if err != nil {
 		t.Fatalf("Link failed: %v", err)
 	}
@@ -162,13 +176,7 @@ func runOptimizerTestProgram(t *testing.T, source string, optimize bool) int32 {
 
 func parseOptimizerTestProgram(t *testing.T, source string) *AstProgramNode {
 	t.Helper()
-	tokens, err := Tokenize(source)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	return program
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, source)
+	return mustParseTokens(t, ctx, tokens)
 }

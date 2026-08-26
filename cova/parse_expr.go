@@ -8,14 +8,14 @@ func newExpressionParser(core *parserCore) *expressionParser {
 	return &expressionParser{core: core}
 }
 
-func (parser *expressionParser) parseExpression() (AstExprNode, error) {
+func (parser *expressionParser) parseExpression() (AstExprNode, bool) {
 	return parser.parseExpressionWithBindingPower(0)
 }
 
-func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower int) (AstExprNode, error) {
-	left, err := parser.parsePrefixExpression()
-	if err != nil {
-		return nil, err
+func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower int) (AstExprNode, bool) {
+	left, ok := parser.parsePrefixExpression()
+	if !ok {
+		return nil, false
 	}
 
 	for {
@@ -26,19 +26,19 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 				return nil, parser.core.errorf(token, "qualified names are not supported")
 			}
 			parser.core.pos++
-			name, err := parser.core.expect(TokIdent)
-			if err != nil {
-				return nil, err
+			name, ok := parser.core.expect(TokIdent)
+			if !ok {
+				return nil, false
 			}
 			if !parser.core.match(TokLParen) {
 				return nil, parser.core.errorf(parser.core.peek(), "qualified names are only supported for built-in calls")
 			}
-			args, err := parser.core.parseArguments()
-			if err != nil {
-				return nil, err
+			args, ok := parser.core.parseArguments()
+			if !ok {
+				return nil, false
 			}
-			if _, err := parser.core.expect(TokRParen); err != nil {
-				return nil, err
+			if _, ok := parser.core.expect(TokRParen); !ok {
+				return nil, false
 			}
 			left = &AstCallExpr{Callee: qualifier.Name + "::" + name.Text, Args: args, Line: qualifier.Line}
 			continue
@@ -56,12 +56,12 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 				return nil, parser.core.errorf(token, "expected expression")
 			}
 			parser.core.pos++
-			args, err := parser.core.parseArguments()
-			if err != nil {
-				return nil, err
+			args, ok := parser.core.parseArguments()
+			if !ok {
+				return nil, false
 			}
-			if _, err := parser.core.expect(TokRParen); err != nil {
-				return nil, err
+			if _, ok := parser.core.expect(TokRParen); !ok {
+				return nil, false
 			}
 			left = &AstCallExpr{Callee: ident.Name, Args: args, Line: ident.Line}
 			continue
@@ -72,9 +72,9 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 				return nil, parser.core.errorf(token, "member base is not addressable")
 			}
 			parser.core.pos++
-			member, err := parser.core.expect(TokIdent)
-			if err != nil {
-				return nil, err
+			member, ok := parser.core.expect(TokIdent)
+			if !ok {
+				return nil, false
 			}
 			left = &AstMemberExpr{Base: base, Member: member.Text, Line: token.Line}
 			continue
@@ -85,12 +85,12 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 				return nil, parser.core.errorf(token, "index base is not addressable")
 			}
 			parser.core.pos++
-			index, err := parser.parseExpressionWithBindingPower(0)
-			if err != nil {
-				return nil, err
+			index, ok := parser.parseExpressionWithBindingPower(0)
+			if !ok {
+				return nil, false
 			}
-			if _, err := parser.core.expect(TokRBracket); err != nil {
-				return nil, err
+			if _, ok := parser.core.expect(TokRBracket); !ok {
+				return nil, false
 			}
 			left = &AstIndexExpr{Base: base, Index: index, Line: token.Line}
 			continue
@@ -101,47 +101,47 @@ func (parser *expressionParser) parseExpressionWithBindingPower(minBindingPower 
 			break
 		}
 		parser.core.pos++
-		right, err := parser.parseExpressionWithBindingPower(rightBP)
-		if err != nil {
-			return nil, err
+		right, ok := parser.parseExpressionWithBindingPower(rightBP)
+		if !ok {
+			return nil, false
 		}
 		left = &AstBinaryExpr{Op: binaryOps[token.Kind], Left: left, Right: right, Line: token.Line}
 	}
 
-	return left, nil
+	return left, true
 }
 
-func (parser *expressionParser) parsePrefixExpression() (AstExprNode, error) {
+func (parser *expressionParser) parsePrefixExpression() (AstExprNode, bool) {
 	token := parser.core.peek()
 	if message := unsupportedExpressionToken(token.Kind); message != "" {
 		return nil, parser.core.errorf(token, message)
 	}
 	if op, ok := unaryOps[token.Kind]; ok {
 		parser.core.pos++
-		operand, err := parser.parsePrefixExpression()
-		if err != nil {
-			return nil, err
+		operand, ok := parser.parsePrefixExpression()
+		if !ok {
+			return nil, false
 		}
-		return &AstUnaryExpr{Op: op, Operand: operand, Line: token.Line}, nil
+		return &AstUnaryExpr{Op: op, Operand: operand, Line: token.Line}, true
 	}
-	if literal, ok, err := parser.core.parseLiteral(); ok || err != nil {
-		return literal, err
+	if literal, matched, success := parser.core.parseLiteral(); matched || !success {
+		return literal, success
 	}
 
 	switch token.Kind {
 	case TokIdent:
 		parser.core.pos++
-		return &AstIdentNode{Name: token.Text, Line: token.Line}, nil
+		return &AstIdentNode{Name: token.Text, Line: token.Line}, true
 	case TokLParen:
 		parser.core.pos++
-		expr, err := parser.parseExpressionWithBindingPower(0)
-		if err != nil {
-			return nil, err
+		expr, ok := parser.parseExpressionWithBindingPower(0)
+		if !ok {
+			return nil, false
 		}
-		if _, err := parser.core.expect(TokRParen); err != nil {
-			return nil, err
+		if _, ok := parser.core.expect(TokRParen); !ok {
+			return nil, false
 		}
-		return expr, nil
+		return expr, true
 	default:
 		return nil, parser.core.errorf(token, "expected expression")
 	}

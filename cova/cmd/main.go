@@ -31,18 +31,19 @@ void reduce_health(int delta) {
 }
 `
 
-	tokens, err := cova.Tokenize(script)
-	check(err)
+	ctx := cova.NewContext()
+	tokens, ok := cova.Tokenize(ctx, script)
+	checkOK(ctx, ok)
 
-	program, err := cova.Parse(tokens)
-	check(err)
-	check(cova.Optimize(program))
+	program, ok := cova.Parse(ctx, tokens)
+	checkOK(ctx, ok)
+	checkOK(ctx, cova.Optimize(ctx, program))
 
-	compiler := cova.NewCompiler()
+	compiler := cova.NewCompiler(ctx)
 	compiled, err := compiler.Compile(program)
 	check(err)
 
-	linker := cova.NewLinker(len(externMemory), 1)
+	linker := cova.NewLinker(ctx, len(externMemory), 1)
 	linked, err := linker.Link(program, compiled)
 	check(err)
 	check(linker.Report(os.Stdout, compiled, linked))
@@ -69,6 +70,16 @@ func check(err error) {
 		return
 	}
 	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
+}
+
+func checkOK(ctx *cova.Context, ok bool) {
+	if ok {
+		return
+	}
+	if ctx != nil {
+		ctx.Report(os.Stdout, os.Stderr)
+	}
 	os.Exit(1)
 }
 

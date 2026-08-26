@@ -8,15 +8,12 @@ import (
 
 func compileBlockSource(t *testing.T, script string) *RelocatableProgram {
 	t.Helper()
-	tokens, err := Tokenize(script)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	compiled, err := NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	compiled, err := NewCompiler(ctx).Compile(program)
 	if err != nil {
 		t.Fatalf("Compile failed: %v", err)
 	}
@@ -24,15 +21,12 @@ func compileBlockSource(t *testing.T, script string) *RelocatableProgram {
 }
 
 func TestCompileRequiresScriptMain(t *testing.T) {
-	tokens, err := Tokenize("int helper() { return 1; }")
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	_, err = NewCompiler().Compile(program)
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, "int helper() { return 1; }")
+	program := mustParseTokens(t, ctx, tokens)
+
+	var err error
+	_, err = NewCompiler(ctx).Compile(program)
 	if err == nil || !strings.Contains(err.Error(), "required entry function \"script_main\" not found") {
 		t.Fatalf("expected missing script_main error, got %v", err)
 	}
@@ -76,18 +70,13 @@ int script_main() { return 7; }
 }
 
 func TestCompileStillValidatesDeadFunctionBodies(t *testing.T) {
-	tokens, err := Tokenize(`
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, `
 int dead() { return missing(); }
 int script_main() { return 1; }
 `)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
-	program, err := Parse(tokens)
-	if err != nil {
-		t.Fatalf("Parse failed: %v", err)
-	}
-	if _, err := NewCompiler().Compile(program); err == nil || !strings.Contains(err.Error(), "unknown function \"missing\"") {
+	program := mustParseTokens(t, ctx, tokens)
+	if _, err := NewCompiler(ctx).Compile(program); err == nil || !strings.Contains(err.Error(), "unknown function \"missing\"") {
 		t.Fatalf("expected dead body compile error, got %v", err)
 	}
 }
@@ -188,37 +177,30 @@ const uint8* script_main() {
 }
 
 func TestCompilerReuseAfterFunctionErrorDoesNotLeakContextState(t *testing.T) {
-	compiler := NewCompiler()
-	badTokens, err := Tokenize(`
+	ctx := NewContext()
+	compiler := NewCompiler(ctx)
+	badCtx := NewContext()
+	badTokens := mustTokenize(t, badCtx, `
 int script_main() { return missing(); }
 `)
-	if err != nil {
-		t.Fatalf("Tokenize bad program failed: %v", err)
-	}
-	badProgram, err := Parse(badTokens)
-	if err != nil {
-		t.Fatalf("Parse bad program failed: %v", err)
-	}
+	badProgram := mustParseTokens(t, badCtx, badTokens)
 	if _, err := compiler.Compile(badProgram); err == nil {
 		t.Fatal("expected bad function compilation to fail")
 	}
 
-	goodTokens, err := Tokenize(`
+	goodCtx := NewContext()
+	goodTokens := mustTokenize(t, goodCtx, `
 int helper() { return 5; }
 int script_main() { return helper(); }
 `)
-	if err != nil {
-		t.Fatalf("Tokenize good program failed: %v", err)
-	}
-	goodProgram, err := Parse(goodTokens)
-	if err != nil {
-		t.Fatalf("Parse good program failed: %v", err)
-	}
+	goodProgram := mustParseTokens(t, goodCtx, goodTokens)
+
+	var err error
 	reused, err := compiler.Compile(goodProgram)
 	if err != nil {
 		t.Fatalf("Compile with reused compiler failed: %v", err)
 	}
-	fresh, err := NewCompiler().Compile(goodProgram)
+	fresh, err := NewCompiler(ctx).Compile(goodProgram)
 	if err != nil {
 		t.Fatalf("Compile with fresh compiler failed: %v", err)
 	}

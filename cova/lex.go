@@ -1,7 +1,6 @@
 package cova
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -140,7 +139,7 @@ var keywords = map[string]TokenKind{
 	"f32": TokF32, "f64": TokF64, "double": TokDouble,
 }
 
-func Tokenize(src string) ([]Token, error) {
+func Tokenize(ctx *Context, src string) ([]Token, bool) {
 	tokens := make([]Token, 0, len(src)/2)
 	line := 1
 	column := 1
@@ -194,7 +193,7 @@ func Tokenize(src string) ([]Token, error) {
 				column++
 			}
 			if !closed {
-				return nil, fmt.Errorf("lex error on line %d, column %d: unterminated block comment", startLine, startColumn)
+				return nil, lexFail(ctx, "lex error on line %d, column %d: unterminated block comment", startLine, startColumn)
 			}
 		case isIdentStart(char):
 			start := index
@@ -215,17 +214,17 @@ func Tokenize(src string) ([]Token, error) {
 			}
 			tokens = append(tokens, Token{Kind: kind, Text: value, Line: startLine, Column: startColumn, Offset: start, Length: index - start})
 		case unicode.IsDigit(char):
-			token, newIndex, err := tokenizeNumericLiteral(src, index, line, column)
-			if err != nil {
-				return nil, err
+			token, newIndex, ok := tokenizeNumericLiteral(ctx, src, index, line, column)
+			if !ok {
+				return nil, false
 			}
 			tokens = append(tokens, token)
 			column += newIndex - index
 			index = newIndex
 		case char == '"':
-			token, newIndex, err := tokenizeStringLiteral(src, index, line, column)
-			if err != nil {
-				return nil, err
+			token, newIndex, ok := tokenizeStringLiteral(ctx, src, index, line, column)
+			if !ok {
+				return nil, false
 			}
 			tokens = append(tokens, token)
 			column += newIndex - index
@@ -241,15 +240,15 @@ func Tokenize(src string) ([]Token, error) {
 			index += width
 			column += width
 		default:
-			return nil, fmt.Errorf("lex error on line %d, column %d: unrecognized symbol %q", line, column, string(char))
+			return nil, lexFail(ctx, "lex error on line %d, column %d: unrecognized symbol %q", line, column, string(char))
 		}
 	}
 
 	tokens = append(tokens, Token{Kind: TokEOF, Line: line, Column: column, Offset: len(src)})
-	return tokens, nil
+	return tokens, true
 }
 
-func tokenizeNumericLiteral(src string, start int, line int, column int) (Token, int, error) {
+func tokenizeNumericLiteral(ctx *Context, src string, start int, line int, column int) (Token, int, bool) {
 	index := start
 	for index < len(src) && unicode.IsDigit(rune(src[index])) {
 		index++
@@ -257,7 +256,7 @@ func tokenizeNumericLiteral(src string, start int, line int, column int) (Token,
 	if index < len(src) && src[index] == '.' {
 		index++
 		if index >= len(src) || !unicode.IsDigit(rune(src[index])) {
-			return Token{}, index, fmt.Errorf("lex error on line %d, column %d: invalid numeric literal", line, column)
+			return Token{}, index, lexFail(ctx, "lex error on line %d, column %d: invalid numeric literal", line, column)
 		}
 		for index < len(src) && unicode.IsDigit(rune(src[index])) {
 			index++
@@ -269,7 +268,7 @@ func tokenizeNumericLiteral(src string, start int, line int, column int) (Token,
 			index++
 		}
 		if index >= len(src) || !unicode.IsDigit(rune(src[index])) {
-			return Token{}, index, fmt.Errorf("lex error on line %d, column %d: invalid numeric literal", line, column)
+			return Token{}, index, lexFail(ctx, "lex error on line %d, column %d: invalid numeric literal", line, column)
 		}
 		for index < len(src) && unicode.IsDigit(rune(src[index])) {
 			index++
@@ -294,21 +293,21 @@ func tokenizeNumericLiteral(src string, start int, line int, column int) (Token,
 	if kind == TokInteger {
 		parsed, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			return Token{}, index, fmt.Errorf("lex error on line %d, column %d: invalid integer literal %q", line, column, value)
+			return Token{}, index, lexFail(ctx, "lex error on line %d, column %d: invalid integer literal %q", line, column, value)
 		}
 		token.IntValue = parsed
-		return token, index, nil
+		return token, index, true
 	}
 	floatText := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(value, "f"), "F"), "d"), "D")
 	parsed, err := strconv.ParseFloat(floatText, 64)
 	if err != nil {
-		return Token{}, index, fmt.Errorf("lex error on line %d, column %d: invalid float literal %q", line, column, value)
+		return Token{}, index, lexFail(ctx, "lex error on line %d, column %d: invalid float literal %q", line, column, value)
 	}
 	token.FloatValue = parsed
-	return token, index, nil
+	return token, index, true
 }
 
-func tokenizeStringLiteral(src string, start int, line int, column int) (Token, int, error) {
+func tokenizeStringLiteral(ctx *Context, src string, start int, line int, column int) (Token, int, bool) {
 	index := start + 1
 	value := make([]rune, 0, 16)
 	for index < len(src) {
@@ -316,10 +315,10 @@ func tokenizeStringLiteral(src string, start int, line int, column int) (Token, 
 		switch char {
 		case '"':
 			text := string(value)
-			return Token{Kind: TokString, Text: text, Line: line, Column: column, Offset: start, Length: index + 1 - start}, index + 1, nil
+			return Token{Kind: TokString, Text: text, Line: line, Column: column, Offset: start, Length: index + 1 - start}, index + 1, true
 		case '\\':
 			if index+1 >= len(src) {
-				return Token{}, index, fmt.Errorf("lex error on line %d: unterminated string literal", line)
+				return Token{}, index, lexFail(ctx, "lex error on line %d: unterminated string literal", line)
 			}
 			escaped := rune(src[index+1])
 			switch escaped {
@@ -336,17 +335,24 @@ func tokenizeStringLiteral(src string, start int, line int, column int) (Token, 
 			case '0':
 				value = append(value, 0)
 			default:
-				return Token{}, index, fmt.Errorf("lex error on line %d: unsupported string escape %q", line, "\\"+string(escaped))
+				return Token{}, index, lexFail(ctx, "lex error on line %d: unsupported string escape %q", line, "\\"+string(escaped))
 			}
 			index += 2
 		case '\n', '\r':
-			return Token{}, index, fmt.Errorf("lex error on line %d: unterminated string literal", line)
+			return Token{}, index, lexFail(ctx, "lex error on line %d: unterminated string literal", line)
 		default:
 			value = append(value, char)
 			index++
 		}
 	}
-	return Token{}, index, fmt.Errorf("lex error on line %d: unterminated string literal", line)
+	return Token{}, index, lexFail(ctx, "lex error on line %d: unterminated string literal", line)
+}
+
+func lexFail(ctx *Context, format string, args ...any) bool {
+	if ctx != nil {
+		ctx.AddError(format, args...)
+	}
+	return false
 }
 
 func isIdentStart(char rune) bool {

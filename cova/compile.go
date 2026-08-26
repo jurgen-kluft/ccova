@@ -48,6 +48,7 @@ type functionCompiler struct {
 }
 
 type Compiler struct {
+	ctx                     *Context
 	code                    CodeMemory
 	symbolBindings          map[string]SymbolBinding
 	externSymbols           []SymbolBinding
@@ -71,8 +72,9 @@ type Compiler struct {
 	err                     error
 }
 
-func NewCompiler() *Compiler {
+func NewCompiler(ctx *Context) *Compiler {
 	return &Compiler{
+		ctx:            ctx,
 		symbolBindings: make(map[string]SymbolBinding),
 		externSymbols:  make([]SymbolBinding, 256),
 		bssSymbols:     make([]SymbolBinding, 256),

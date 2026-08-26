@@ -216,19 +216,19 @@ func PointerToQualified(base *Type, isConst bool) *Type {
 	return &Type{Kind: TypePointer, Name: base.Name + "*", Size: 4, Base: base, IsConst: isConst}
 }
 
-func ArrayOf(elementType *Type, count int) (*Type, error) {
+func ArrayOf(ctx *Context, elementType *Type, count int) (*Type, bool) {
 	if elementType == nil || elementType.Kind == TypeVoid {
-		return nil, fmt.Errorf("array element type must be complete")
+		return nil, typeFail(ctx, "array element type must be complete")
 	}
 	if count <= 0 {
-		return nil, fmt.Errorf("array element count must be positive")
+		return nil, typeFail(ctx, "array element count must be positive")
 	}
 	if elementType.Size > int(^uint(0)>>1)/count {
-		return nil, fmt.Errorf("array byte size overflows int")
+		return nil, typeFail(ctx, "array byte size overflows int")
 	}
 	byteSize := elementType.Size * count
 	if uint64(byteSize) > uint64(addressIndexMask)+1 {
-		return nil, fmt.Errorf("array byte size exceeds the VM segment address space")
+		return nil, typeFail(ctx, "array byte size exceeds the VM segment address space")
 	}
 	return &Type{
 		Kind:         TypeArray,
@@ -236,15 +236,15 @@ func ArrayOf(elementType *Type, count int) (*Type, error) {
 		Size:         byteSize,
 		Base:         elementType,
 		ElementCount: count,
-	}, nil
+	}, true
 }
 
-func NewStructType(name string, fields []StructField) (*Type, error) {
+func NewStructType(ctx *Context, name string, fields []StructField) (*Type, bool) {
 	if name == "" {
-		return nil, fmt.Errorf("struct name cannot be empty")
+		return nil, typeFail(ctx, "struct name cannot be empty")
 	}
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("struct %q must declare at least one field", name)
+		return nil, typeFail(ctx, "struct %q must declare at least one field", name)
 	}
 	descriptor := &StructType{
 		Name:         name,
@@ -255,13 +255,13 @@ func NewStructType(name string, fields []StructField) (*Type, error) {
 	offset := 0
 	for _, field := range fields {
 		if field.Name == "" {
-			return nil, fmt.Errorf("struct %q has a field with no name", name)
+			return nil, typeFail(ctx, "struct %q has a field with no name", name)
 		}
 		if _, exists := descriptor.FieldsByName[field.Name]; exists {
-			return nil, fmt.Errorf("struct %q has duplicate field %q", name, field.Name)
+			return nil, typeFail(ctx, "struct %q has duplicate field %q", name, field.Name)
 		}
 		if field.Type == nil || field.Type.Kind == TypeVoid || field.Type.Size <= 0 {
-			return nil, fmt.Errorf("struct %q field %q must have a complete type", name, field.Name)
+			return nil, typeFail(ctx, "struct %q field %q must have a complete type", name, field.Name)
 		}
 		alignment := field.Type.Alignment()
 		if alignment > descriptor.Alignment {
@@ -269,7 +269,7 @@ func NewStructType(name string, fields []StructField) (*Type, error) {
 		}
 		alignedOffset, ok := alignUpInt(offset, alignment)
 		if !ok || field.Type.Size > int(^uint(0)>>1)-alignedOffset {
-			return nil, fmt.Errorf("struct %q layout overflows int", name)
+			return nil, typeFail(ctx, "struct %q layout overflows int", name)
 		}
 		field.ByteOffset = alignedOffset
 		descriptor.FieldsByName[field.Name] = len(descriptor.Fields)
@@ -278,13 +278,20 @@ func NewStructType(name string, fields []StructField) (*Type, error) {
 	}
 	size, ok := alignUpInt(offset, descriptor.Alignment)
 	if !ok {
-		return nil, fmt.Errorf("struct %q layout overflows int", name)
+		return nil, typeFail(ctx, "struct %q layout overflows int", name)
 	}
 	descriptor.Size = size
 	if uint64(size) > uint64(addressIndexMask)+1 {
-		return nil, fmt.Errorf("struct %q byte size exceeds the VM segment address space", name)
+		return nil, typeFail(ctx, "struct %q byte size exceeds the VM segment address space", name)
 	}
-	return &Type{Kind: TypeStruct, Name: name, Size: size, Struct: descriptor}, nil
+	return &Type{Kind: TypeStruct, Name: name, Size: size, Struct: descriptor}, true
+}
+
+func typeFail(ctx *Context, format string, args ...any) bool {
+	if ctx != nil {
+		ctx.AddError(format, args...)
+	}
+	return false
 }
 
 func alignUpInt(value int, alignment int) (int, bool) {

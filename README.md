@@ -63,12 +63,13 @@ if status := vm.RunLoaded(); status != cova.VMStatusOK {
 Optimization is an explicit, optional stage between parsing and compilation:
 
 ```go
-program, err := cova.Parse(tokens)
-if err != nil {
-    return err
+ctx := cova.NewContext()
+program, ok := cova.Parse(ctx, tokens)
+if !ok {
+    return fmt.Errorf("parse failed: %v", ctx.Issues())
 }
-if err := cova.Optimize(program); err != nil {
-    return err
+if !cova.Optimize(ctx, program) {
+    return fmt.Errorf("optimization failed: %v", ctx.Issues())
 }
 compiled, err := cova.NewCompiler().Compile(program)
 ```

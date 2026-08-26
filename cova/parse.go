@@ -1,7 +1,7 @@
 package cova
 
-func Parse(tokens []Token) (*AstProgramNode, error) {
-	core := newParserCore(tokens)
+func Parse(ctx *Context, tokens []Token) (*AstProgramNode, bool) {
+	core := newParserCore(ctx, tokens)
 	core.expr = newExpressionParser(&core)
 	return core.parseProgram()
 }

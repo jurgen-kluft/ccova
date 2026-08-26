@@ -7,10 +7,8 @@ import (
 
 func TestTokenizeComparisonOperators(t *testing.T) {
 	src := "if (a == b != c <= d >= e) { return; }"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	var operators []TokenKind
 	for _, token := range tokens {
 		switch token.Kind {
@@ -31,10 +29,8 @@ func TestTokenizeComparisonOperators(t *testing.T) {
 
 func TestTokenizeLogicalOperators(t *testing.T) {
 	src := "if (ready && active || enabled) { return; }"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	var operators []TokenKind
 	for _, token := range tokens {
 		if token.Kind == TokLogicalAnd || token.Kind == TokLogicalOr {
@@ -55,10 +51,8 @@ func TestTokenizeLogicalOperators(t *testing.T) {
 func TestTokenizeCStyleOperatorsAndPunctuators(t *testing.T) {
 	src := "+ - * / % ++ -- -> == != <= >= && || << >> += -= *= /= %= <<= >>= &= |= ^= & | ^ ~ = < > ! " +
 		"( ) { } [ ] ; , : :: . ... ? # ##"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 
 	expected := []TokenKind{
 		TokPlus, TokMinus, TokStar, TokSlash, TokPercent,
@@ -84,10 +78,8 @@ func TestTokenizeCStyleOperatorsAndPunctuators(t *testing.T) {
 
 func TestTokenizeColonDelimiter(t *testing.T) {
 	src := "switch (value) { case 1: default: }"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	colonCount := 0
 	for _, token := range tokens {
 		if token.Kind == TokColon {
@@ -101,10 +93,8 @@ func TestTokenizeColonDelimiter(t *testing.T) {
 
 func TestTokenizeControlFlowKeywords(t *testing.T) {
 	src := "break case continue default else for switch while"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	expected := []TokenKind{TokBreak, TokCase, TokContinue, TokDefault, TokElse, TokFor, TokSwitch, TokWhile}
 	if len(tokens) != len(expected)+1 {
 		t.Fatalf("expected %d tokens plus eof, got %d", len(expected), len(tokens))
@@ -119,10 +109,8 @@ func TestTokenizeControlFlowKeywords(t *testing.T) {
 
 func TestTokenizeTypeAliasKeywords(t *testing.T) {
 	src := "i8 i16 i32 i64 u8 u16 u32 u64 float f32 f64 double"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	expected := []TokenKind{TokI8, TokI16, TokI32, TokI64, TokU8, TokU16, TokU32, TokU64, TokFloat, TokF32, TokF64, TokDouble}
 	if len(tokens) != len(expected)+1 {
 		t.Fatalf("expected %d tokens plus eof, got %d", len(expected), len(tokens))
@@ -136,10 +124,8 @@ func TestTokenizeTypeAliasKeywords(t *testing.T) {
 
 func TestTokenizeConstKeyword(t *testing.T) {
 	src := "const"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	if len(tokens) != 2 {
 		t.Fatalf("expected const plus eof, got %d tokens", len(tokens))
 	}
@@ -150,10 +136,8 @@ func TestTokenizeConstKeyword(t *testing.T) {
 
 func TestTokenizeBooleanLiteralKeywords(t *testing.T) {
 	src := "true false"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	expected := []TokenKind{TokTrue, TokFalse}
 	if len(tokens) != len(expected)+1 {
 		t.Fatalf("expected %d tokens plus eof, got %d", len(expected), len(tokens))
@@ -168,10 +152,8 @@ func TestTokenizeBooleanLiteralKeywords(t *testing.T) {
 
 func TestTokenizeNumericLiteralSupportsIntegerFloatAndScientific(t *testing.T) {
 	src := "1 2.5 6e3 7.25e-2 8E+4"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	if tokens[0].Kind != TokInteger || tokens[0].IntValue != 1 {
 		t.Fatalf("expected integer payload 1, got kind=%d value=%d", tokens[0].Kind, tokens[0].IntValue)
 	}
@@ -184,10 +166,8 @@ func TestTokenizeNumericLiteralSupportsIntegerFloatAndScientific(t *testing.T) {
 
 func TestTokenizeNumericLiteralSupportsFloatSuffixes(t *testing.T) {
 	src := "0.5 1.5f 2.5d 6e3F 7.25E-2D"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	expectedKinds := []TokenKind{TokFloat32, TokFloat32, TokFloat64, TokFloat32, TokFloat64}
 	for index, want := range expectedKinds {
 		if tokens[index].Kind != want {
@@ -198,7 +178,8 @@ func TestTokenizeNumericLiteralSupportsFloatSuffixes(t *testing.T) {
 
 func TestTokenizeNumericLiteralRejectsInvalidScientificNotation(t *testing.T) {
 	for _, src := range []string{"1e", "1e+", "1e-", "2.E3"} {
-		if _, err := Tokenize(src); err == nil {
+		ctx := NewContext()
+		if _, ok := Tokenize(ctx, src); ok {
 			t.Fatalf("expected Tokenize to reject %q", src)
 		}
 	}
@@ -206,10 +187,8 @@ func TestTokenizeNumericLiteralRejectsInvalidScientificNotation(t *testing.T) {
 
 func TestTokenizeStringLiteralSupportsEscapes(t *testing.T) {
 	src := "\"asset\\npath\\\"\\\\tail\""
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	if len(tokens) != 2 {
 		t.Fatalf("expected string token plus eof, got %d tokens", len(tokens))
 	}
@@ -222,21 +201,21 @@ func TestTokenizeStringLiteralSupportsEscapes(t *testing.T) {
 }
 
 func TestTokenizeStringLiteralRejectsUnterminatedLiteral(t *testing.T) {
-	_, err := Tokenize("\"asset/button_off")
-	if err == nil {
+	ctx := NewContext()
+	_, ok := Tokenize(ctx, "\"asset/button_off")
+	if ok {
 		t.Fatal("expected unterminated string literal error")
 	}
-	if !strings.Contains(err.Error(), "unterminated string literal") {
-		t.Fatalf("expected unterminated string error, got %v", err)
+	issues := issueDescriptions(ctx)
+	if len(issues) == 0 || !strings.Contains(issues[0], "unterminated string literal") {
+		t.Fatalf("expected unterminated string error, got %v", issues)
 	}
 }
 
 func TestTokenizeNewlinesCommentsAndSpans(t *testing.T) {
 	src := "one\r\ntwo // comment\n/* block\ncomment */ three"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	expected := []TokenKind{TokIdent, TokNewline, TokIdent, TokNewline, TokIdent, TokEOF}
 	if len(tokens) != len(expected) {
 		t.Fatalf("expected %d tokens, got %d", len(expected), len(tokens))
@@ -256,10 +235,8 @@ func TestTokenizeNewlinesCommentsAndSpans(t *testing.T) {
 
 func TestTokenizeCommentsTrackCRLineEndings(t *testing.T) {
 	src := "// line\rone\r/* block\r\ntwo */three"
-	tokens, err := Tokenize(src)
-	if err != nil {
-		t.Fatalf("Tokenize failed: %v", err)
-	}
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, src)
 	expected := []TokenKind{TokNewline, TokIdent, TokNewline, TokIdent, TokEOF}
 	if len(tokens) != len(expected) {
 		t.Fatalf("expected %d tokens, got %d", len(expected), len(tokens))
@@ -275,8 +252,13 @@ func TestTokenizeCommentsTrackCRLineEndings(t *testing.T) {
 }
 
 func TestTokenizeRejectsUnterminatedBlockComment(t *testing.T) {
-	_, err := Tokenize("value /* missing")
-	if err == nil || !strings.Contains(err.Error(), "unterminated block comment") {
-		t.Fatalf("expected unterminated block comment error, got %v", err)
+	ctx := NewContext()
+	_, ok := Tokenize(ctx, "value /* missing")
+	if ok {
+		t.Fatal("expected unterminated block comment error")
+	}
+	issues := issueDescriptions(ctx)
+	if len(issues) == 0 || !strings.Contains(issues[0], "unterminated block comment") {
+		t.Fatalf("expected unterminated block comment error, got %v", issues)
 	}
 }

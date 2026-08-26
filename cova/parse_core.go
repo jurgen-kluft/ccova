@@ -5,38 +5,39 @@ import (
 )
 
 type exprParser interface {
-	parseExpression() (AstExprNode, error)
+	parseExpression() (AstExprNode, bool)
 }
 
 type parserCore struct {
+	ctx        *Context
 	tokens     []Token
 	pos        int
 	expr       exprParser
 	namedTypes map[string]*Type
 }
 
-func newParserCore(tokens []Token) parserCore {
+func newParserCore(ctx *Context, tokens []Token) parserCore {
 	types := make(map[string]*Type, len(namedTypes))
 	for name, typ := range namedTypes {
 		types[name] = typ
 	}
-	return parserCore{tokens: tokens, namedTypes: types}
+	return parserCore{ctx: ctx, tokens: tokens, namedTypes: types}
 }
 
-func (core *parserCore) parseExpression() (AstExprNode, error) {
+func (core *parserCore) parseExpression() (AstExprNode, bool) {
 	if core.expr == nil {
 		return nil, core.errorf(core.peek(), "expected expression")
 	}
 	return core.expr.parseExpression()
 }
 
-func (core *parserCore) expect(kind TokenKind) (Token, error) {
+func (core *parserCore) expect(kind TokenKind) (Token, bool) {
 	token := core.peek()
 	if token.Kind != kind {
 		return Token{}, core.errorf(token, expectedTokenLabel(kind))
 	}
 	core.pos++
-	return token, nil
+	return token, true
 }
 
 func (core *parserCore) match(kind TokenKind) bool {
@@ -65,7 +66,7 @@ func (core *parserCore) isEOF() bool {
 	return core.peek().Kind == TokEOF
 }
 
-func (core *parserCore) parseType() (*Type, error) {
+func (core *parserCore) parseType() (*Type, bool) {
 	leadingConst := core.parseConstQualifier()
 	token := core.peek()
 	typ := tokenTypes[token.Kind]
@@ -87,7 +88,7 @@ func (core *parserCore) parseType() (*Type, error) {
 		typ = PointerToQualified(typ, pointerConst)
 	}
 
-	return typ, nil
+	return typ, true
 }
 
 func (core *parserCore) parseConstQualifier() bool {
@@ -102,72 +103,84 @@ func (core *parserCore) isTypeKeyword(token Token) bool {
 	return token.Kind == TokConst || tokenTypes[token.Kind] != nil || token.Kind == TokIdent && core.namedTypes[token.Text] != nil
 }
 
-func (core *parserCore) parseArrayDeclarator(typ *Type) (*Type, error) {
+func (core *parserCore) parseArrayDeclarator(typ *Type) (*Type, bool) {
 	for core.match(TokLBracket) {
-		countToken, err := core.expect(TokInteger)
-		if err != nil {
-			return nil, err
+		countToken, ok := core.expect(TokInteger)
+		if !ok {
+			return nil, false
 		}
 		if countToken.IntValue <= 0 || uint64(countToken.IntValue) > uint64(^uint(0)>>1) {
 			return nil, core.errorf(countToken, "array element count must be a positive integer that fits int")
 		}
-		if _, err := core.expect(TokRBracket); err != nil {
-			return nil, err
+		if _, ok := core.expect(TokRBracket); !ok {
+			return nil, false
 		}
-		typ, err = ArrayOf(typ, int(countToken.IntValue))
-		if err != nil {
-			return nil, core.errorf(countToken, err.Error())
+		if typ == nil || typ.Kind == TypeVoid {
+			return nil, core.errorf(countToken, "array element type must be complete")
+		}
+		if typ.Size > int(^uint(0)>>1)/int(countToken.IntValue) {
+			return nil, core.errorf(countToken, "array byte size overflows int")
+		}
+		if uint64(typ.Size*int(countToken.IntValue)) > uint64(addressIndexMask)+1 {
+			return nil, core.errorf(countToken, "array byte size exceeds the VM segment address space")
+		}
+		typ, ok = ArrayOf(core.ctx, typ, int(countToken.IntValue))
+		if !ok {
+			return nil, false
 		}
 	}
-	return typ, nil
+	return typ, true
 }
 
-func (core *parserCore) parseArguments() ([]AstExprNode, error) {
+func (core *parserCore) parseArguments() ([]AstExprNode, bool) {
 	if core.peek().Kind == TokRParen {
-		return nil, nil
+		return nil, true
 	}
 	args := make([]AstExprNode, 0, 4)
 	for {
-		expr, err := core.parseExpression()
-		if err != nil {
-			return nil, err
+		expr, ok := core.parseExpression()
+		if !ok {
+			return nil, false
 		}
 		args = append(args, expr)
 		if !core.match(TokComma) {
 			break
 		}
 	}
-	return args, nil
+	return args, true
 }
 
-func (core *parserCore) parseLiteral() (AstExprNode, bool, error) {
+func (core *parserCore) parseLiteral() (AstExprNode, bool, bool) {
 	token := core.peek()
 	switch token.Kind {
 	case TokInteger:
 		core.pos++
-		return &AstNumberLiteral{IntValue: int(token.IntValue), Line: token.Line}, true, nil
+		return &AstNumberLiteral{IntValue: int(token.IntValue), Line: token.Line}, true, true
 	case TokFloat32, TokFloat64:
 		core.pos++
 		floatType := Float32Type
 		if token.Kind == TokFloat64 {
 			floatType = Float64Type
 		}
-		return &AstNumberLiteral{FloatValue: token.FloatValue, IsFloat: true, FloatType: floatType, Line: token.Line}, true, nil
+		return &AstNumberLiteral{FloatValue: token.FloatValue, IsFloat: true, FloatType: floatType, Line: token.Line}, true, true
 	case TokString:
 		core.pos++
-		return &AstStringLiteral{Value: token.Text, Line: token.Line}, true, nil
+		return &AstStringLiteral{Value: token.Text, Line: token.Line}, true, true
 	case TokTrue:
 		core.pos++
-		return &AstNumberLiteral{IntValue: 1, IsBool: true, Line: token.Line}, true, nil
+		return &AstNumberLiteral{IntValue: 1, IsBool: true, Line: token.Line}, true, true
 	case TokFalse:
 		core.pos++
-		return &AstNumberLiteral{IntValue: 0, IsBool: true, Line: token.Line}, true, nil
+		return &AstNumberLiteral{IntValue: 0, IsBool: true, Line: token.Line}, true, true
 	}
-	return nil, false, nil
+	return nil, false, true
 }
 
-func (core *parserCore) errorf(token Token, message string) error {
-	return fmt.Errorf("syntax error on line %d, column %d: %s", token.Line, token.Column, message)
+func (core *parserCore) errorf(token Token, message string) bool {
+	if core.ctx != nil {
+		core.ctx.AddError("syntax error on line %d, column %d: %s", token.Line, token.Column, message)
+	}
+	return false
 }
 
 func expectedTokenLabel(kind TokenKind) string {
