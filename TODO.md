@@ -14,20 +14,20 @@
 ## Built-in functions
 
 - time
-  - `float frame_time()`
-  - Timers (`0 <= id < 32`)
-    - `void timer_start(id, timeout_ms)`
-    - `void timer_reset(id)`
-    - `bool timer_query(id)`
-    - `void timer_stop(id)`
+  - `float time::frame_time()`
+  - Timers (`0 <= id < N`)
+    - `void time::timer_start(id, timeout_ms)`
+    - `void time::timer_reset(id)`
+    - `bool time::timer_query(id)`
+    - `void time::timer_stop(id)`
 
-- math
-  - `math_min`, `math_max`
-  - `math_map`
-  - `math_random`
-  - `math_clamp`
-  - `math_smoothstep`
-  - `math_interpolate`
-  - `math_lerp`, `math_slerp`
+- [DONE] math
+  - `math::min`, `math::max`
+  - `math::map`
+  - `math::random`
+  - `math::clamp`
+  - `math::smoothstep`
+  - `math::interpolate`
+  - `math::lerp`, `math::slerp`
 
 
