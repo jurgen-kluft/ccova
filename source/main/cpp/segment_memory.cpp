@@ -98,16 +98,19 @@ namespace ncore
         const u32 offset       = grow(memory, 1);
         memory->m_data[offset] = value;
     }
+    
     void append_u16(segment_memory_t* memory, u16 value)
     {
         const u32 offset = grow(memory, 2);
         write_le_u16(memory->m_data + offset, value);
     }
+    
     void append_u32(segment_memory_t* memory, u32 value)
     {
         const u32 offset = grow(memory, 4);
         write_le_u32(memory->m_data + offset, value);
     }
+    
     void append_u64(segment_memory_t* memory, u64 value)
     {
         const u32 offset = grow(memory, 8);

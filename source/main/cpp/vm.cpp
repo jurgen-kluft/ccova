@@ -6,13 +6,16 @@
 
 namespace ncore
 {
-    static void assert_segment_storage(const segment_memory_t& segment)
+    static bool s_validate_segment_storage(const segment_memory_t& segment)
     {
-        ASSERT(segment.m_size <= segment.m_capacity);
-        ASSERT(segment.m_data != nullptr || segment.m_capacity == 0);
+        if (segment.m_size > segment.m_capacity)
+            return false;
+        if (segment.m_data == nullptr && segment.m_capacity != 0)
+            return false;
+        return true;
     }
 
-    static void clear_bytes(segment_memory_t* segment)
+    static void s_clear_data(segment_memory_t* segment)
     {
         ASSERT(segment != nullptr);
         ASSERT(segment->m_data != nullptr || segment->m_size == 0);
@@ -20,7 +23,7 @@ namespace ncore
             segment->m_data[index] = 0;
     }
 
-    static void copy_bytes(segment_memory_t* destination, const relative_array_t<byte>& source)
+    static void s_copy_bytes(segment_memory_t* destination, const relative_array_t<byte>& source)
     {
         ASSERT(destination != nullptr);
         ASSERT(destination->m_size == source.m_size);
@@ -30,16 +33,14 @@ namespace ncore
             destination->m_data[index] = source[index];
     }
 
-    static call_frame_t* current_frame(vm_t* vm)
+    static call_frame_t* s_current_frame(vm_t* vm)
     {
-        ASSERT(vm != nullptr);
         ASSERT(vm->m_call_frame_count != 0);
         return &vm->m_call_frames[vm->m_call_frame_count - 1];
     }
 
-    static void enter_script_function(vm_t* vm, u32 function_index, u32 return_pc, bool pop_arguments)
+    static void s_enter_script_function(vm_t* vm, u32 function_index, u32 return_pc, bool pop_arguments)
     {
-        ASSERT(vm != nullptr);
         ASSERT(vm->m_program != nullptr);
         ASSERT(function_index < vm->m_program->m_functions.m_size);
         ASSERT(vm->m_call_frame_count < vm->m_call_frame_capacity);
@@ -94,14 +95,13 @@ namespace ncore
 
     void initialize_vm(vm_t* vm, call_frame_t* call_frames, u32 call_frame_capacity, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack)
     {
-        ASSERT(vm != nullptr);
         ASSERT(call_frames != nullptr);
         ASSERT(call_frame_capacity != 0);
-        assert_segment_storage(frame);
-        assert_segment_storage(bss);
-        assert_segment_storage(external);
-        assert_segment_storage(data);
-        assert_segment_storage(stack);
+        ASSERT(s_validate_segment_storage(frame));
+        ASSERT(s_validate_segment_storage(bss));
+        ASSERT(s_validate_segment_storage(external));
+        ASSERT(s_validate_segment_storage(data));
+        ASSERT(s_validate_segment_storage(stack));
         ASSERT(frame.m_size == frame.m_capacity);
         ASSERT(stack.m_size == 0);
 
@@ -120,7 +120,6 @@ namespace ncore
 
     void load_program(vm_t* vm, const linked_program_t* program)
     {
-        ASSERT(vm != nullptr);
         validate_linked_program(program);
 
         segment_memory_t* bss  = &vm->m_memory.m_segments[SegmentBSS];
@@ -140,19 +139,17 @@ namespace ncore
 
     void load_program_image(vm_t* vm, const byte* block, u32 block_size)
     {
-        ASSERT(vm != nullptr);
         load_program(vm, open_program_image(block, block_size));
     }
 
     void reset_vm(vm_t* vm)
     {
-        ASSERT(vm != nullptr);
         ASSERT(vm->m_program != nullptr);
 
-        clear_bytes(&vm->m_memory.m_segments[SegmentBSS]);
-        copy_bytes(&vm->m_memory.m_segments[SegmentData], vm->m_program->m_data_data);
+        s_clear_data(&vm->m_memory.m_segments[SegmentBSS]);
+        s_copy_bytes(&vm->m_memory.m_segments[SegmentData], vm->m_program->m_data_data);
         vm->m_memory.m_segments[SegmentStack].m_size = 0;
-        clear_bytes(&vm->m_memory.m_segments[SegmentFrame]);
+        s_clear_data(&vm->m_memory.m_segments[SegmentFrame]);
         vm->m_pc               = 0;
         vm->m_call_frame_count = 0;
         vm->m_frame_top        = 0;
@@ -161,40 +158,35 @@ namespace ncore
         const u32 entry_point = vm->m_program->m_entry_point;
         ASSERT(entry_point < vm->m_program->m_functions.m_size);
         ASSERT(vm->m_program->m_functions[entry_point].m_param_count == 0);
-        enter_script_function(vm, entry_point, 0, false);
+        s_enter_script_function(vm, entry_point, 0, false);
     }
 
     void register_extern_dispatcher(vm_t* vm, void* host_context, extern_dispatcher_fn dispatcher)
     {
-        ASSERT(vm != nullptr);
         vm->m_host_context      = host_context;
         vm->m_extern_dispatcher = dispatcher;
     }
 
     void push_bits32(vm_t* vm, evaluekind_t kind, u32 bits)
     {
-        ASSERT(vm != nullptr);
         ASSERT(value_kind_is_32_bit(kind));
         append_bits32(&vm->m_memory.m_segments[SegmentStack], kind, bits);
     }
 
     u32 pop_bits32(vm_t* vm, evaluekind_t kind)
     {
-        ASSERT(vm != nullptr);
         ASSERT(value_kind_is_32_bit(kind));
         return truncate_bits32(&vm->m_memory.m_segments[SegmentStack], kind);
     }
 
     void push_bits64(vm_t* vm, evaluekind_t kind, u64 bits)
     {
-        ASSERT(vm != nullptr);
         ASSERT(value_kind_is_64_bit(kind));
         append_bits64(&vm->m_memory.m_segments[SegmentStack], kind, bits);
     }
 
     u64 pop_bits64(vm_t* vm, evaluekind_t kind)
     {
-        ASSERT(vm != nullptr);
         ASSERT(value_kind_is_64_bit(kind));
         return truncate_bits64(&vm->m_memory.m_segments[SegmentStack], kind);
     }
@@ -370,22 +362,24 @@ namespace ncore
                 case KindFloat64: push_bits64(vm, kind, f64_to_bits(float_arithmetic(bits_to_f64(left_bits), bits_to_f64(right_bits), operation))); break;
                 default: ASSERT(false); break;
             }
-            return;
         }
-        const u32 right_bits = pop_bits32(vm, kind);
-        const u32 left_bits  = pop_bits32(vm, kind);
-        switch (kind)
+        else
         {
-            case KindBool:
-            case KindByte:
-            case KindUint8: push_bits32(vm, kind, integer_arithmetic<u8, u8>((u8)left_bits, (u8)right_bits, operation, false)); break;
-            case KindInt8: push_bits32(vm, kind, integer_arithmetic<s8, u8>((s8)(u8)left_bits, (s8)(u8)right_bits, operation, true)); break;
-            case KindInt16: push_bits32(vm, kind, integer_arithmetic<s16, u16>((s16)(u16)left_bits, (s16)(u16)right_bits, operation, true)); break;
-            case KindInt32: push_bits32(vm, kind, integer_arithmetic<s32, u32>((s32)left_bits, (s32)right_bits, operation, true)); break;
-            case KindUint16: push_bits32(vm, kind, integer_arithmetic<u16, u16>((u16)left_bits, (u16)right_bits, operation, false)); break;
-            case KindUint32: push_bits32(vm, kind, integer_arithmetic<u32, u32>(left_bits, right_bits, operation, false)); break;
-            case KindFloat32: push_bits32(vm, kind, f32_to_bits(float_arithmetic(bits_to_f32(left_bits), bits_to_f32(right_bits), operation))); break;
-            default: ASSERT(false); break;
+            const u32 right_bits = pop_bits32(vm, kind);
+            const u32 left_bits  = pop_bits32(vm, kind);
+            switch (kind)
+            {
+                case KindBool:
+                case KindByte:
+                case KindUint8: push_bits32(vm, kind, integer_arithmetic<u8, u8>((u8)left_bits, (u8)right_bits, operation, false)); break;
+                case KindInt8: push_bits32(vm, kind, integer_arithmetic<s8, u8>((s8)(u8)left_bits, (s8)(u8)right_bits, operation, true)); break;
+                case KindInt16: push_bits32(vm, kind, integer_arithmetic<s16, u16>((s16)(u16)left_bits, (s16)(u16)right_bits, operation, true)); break;
+                case KindInt32: push_bits32(vm, kind, integer_arithmetic<s32, u32>((s32)left_bits, (s32)right_bits, operation, true)); break;
+                case KindUint16: push_bits32(vm, kind, integer_arithmetic<u16, u16>((u16)left_bits, (u16)right_bits, operation, false)); break;
+                case KindUint32: push_bits32(vm, kind, integer_arithmetic<u32, u32>(left_bits, right_bits, operation, false)); break;
+                case KindFloat32: push_bits32(vm, kind, f32_to_bits(float_arithmetic(bits_to_f32(left_bits), bits_to_f32(right_bits), operation))); break;
+                default: ASSERT(false); break;
+            }
         }
     }
 
@@ -411,19 +405,21 @@ namespace ncore
         ASSERT(segment_index >= SegmentFrame && segment_index <= SegmentStack);
         ASSERT(segment_index != SegmentConst);
         segment_memory_t* segment = &vm->m_memory.m_segments[(u32)segment_index];
-        const u32 offset = address_index(address);
+        const u32         offset  = address_index(address);
         if (value_kind_is_64_bit(kind))
         {
             write_u64(segment, offset, pop_bits64(vm, kind));
-            return;
         }
-        const u32 value = pop_bits32(vm, kind);
-        switch (value_kind_size(kind))
+        else
         {
-            case 1: write_u8(segment, offset, (u8)value); break;
-            case 2: write_u16(segment, offset, (u16)value); break;
-            case 4: write_u32(segment, offset, value); break;
-            default: ASSERT(false); break;
+            const u32 value = pop_bits32(vm, kind);
+            switch (value_kind_size(kind))
+            {
+                case 1: write_u8(segment, offset, (u8)value); break;
+                case 2: write_u16(segment, offset, (u16)value); break;
+                case 4: write_u32(segment, offset, value); break;
+                default: ASSERT(false); break;
+            }
         }
     }
 
@@ -455,7 +451,6 @@ namespace ncore
 
     void run_loaded_vm(vm_t* vm)
     {
-        ASSERT(vm != nullptr);
         reset_vm(vm);
         const code_memory_t text = {vm->m_program->m_text.data(), vm->m_program->m_text.m_size};
         while (vm->m_pc < text.m_size)
@@ -484,7 +479,7 @@ namespace ncore
                     u32 offset = read_u32(&text, &vm->m_pc);
                     if (segment == SegmentFrame)
                     {
-                        const u32 local_base = current_frame(vm)->m_local_base;
+                        const u32 local_base = s_current_frame(vm)->m_local_base;
                         ASSERT(offset <= AddressIndexMask - local_base);
                         offset += local_base;
                     }
@@ -537,7 +532,7 @@ namespace ncore
                 {
                     const u32 target    = read_u32(&text, &vm->m_pc);
                     const u32 return_pc = vm->m_pc;
-                    enter_script_function(vm, target, return_pc, true);
+                    s_enter_script_function(vm, target, return_pc, true);
                     break;
                 }
                 case OpCallExtern:

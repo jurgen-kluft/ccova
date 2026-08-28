@@ -1,6 +1,7 @@
-#include "ccova/builtins.h"
 #include "ccova/float_bits.h"
 #include "ccova/vm.h"
+
+#include "ccova/builtins.h"
 
 #include <cmath>
 
@@ -43,49 +44,47 @@ namespace ncore
         reset_builtins(vm);
     }
 
-    static void execute_builtin_abs(vm_t* vm, evaluekind_t kind)
+    static void execute_builtin_abs_32(vm_t* vm, evaluekind_t kind)
     {
-        if (value_kind_is_64_bit(kind))
+        u32 bits = pop_bits32(vm, kind);
+        switch (kind)
         {
-            u64 bits = pop_bits64(vm, kind);
-            switch (kind)
-            {
-                case KindUint64: break;
-                case KindInt64:
-                    if ((bits & 0x8000000000000000ULL) != 0)
-                        bits = 0ULL - bits;
-                    break;
-                case KindFloat64: bits = f64_to_bits(std::fabs(bits_to_f64(bits))); break;
-                default: ASSERT(false); break;
-            }
-            push_bits64(vm, kind, bits);
+            case KindByte:
+            case KindUint8:
+            case KindUint16:
+            case KindUint32: break;
+            case KindInt8:
+                if ((bits & 0x80U) != 0)
+                    bits = (u8)(0U - (u8)bits);
+                break;
+            case KindInt16:
+                if ((bits & 0x8000U) != 0)
+                    bits = (u16)(0U - (u16)bits);
+                break;
+            case KindInt32:
+                if ((bits & 0x80000000U) != 0)
+                    bits = (u32)(0U - (u32)bits);
+                break;
+            case KindFloat32: bits = f32_to_bits((f32)std::fabs((f64)bits_to_f32(bits))); break;
+            default: ASSERT(false); break;
         }
-        else // if (value_kind_is_32_bit(kind))
+        push_bits32(vm, kind, bits);
+    }
+
+    static void execute_builtin_abs_64(vm_t* vm, evaluekind_t kind)
+    {
+        u64 bits = pop_bits64(vm, kind);
+        switch (kind)
         {
-            u32 bits = pop_bits32(vm, kind);
-            switch (kind)
-            {
-                case KindByte:
-                case KindUint8:
-                case KindUint16:
-                case KindUint32: break;
-                case KindInt8:
-                    if ((bits & 0x80U) != 0)
-                        bits = (u8)(0U - (u8)bits);
-                    break;
-                case KindInt16:
-                    if ((bits & 0x8000U) != 0)
-                        bits = (u16)(0U - (u16)bits);
-                    break;
-                case KindInt32:
-                    if ((bits & 0x80000000U) != 0)
-                        bits = (u32)(0U - (u32)bits);
-                    break;
-                case KindFloat32: bits = f32_to_bits((f32)std::fabs((f64)bits_to_f32(bits))); break;
-                default: ASSERT(false); break;
-            }
-            push_bits32(vm, kind, bits);
+            case KindUint64: break;
+            case KindInt64:
+                if ((bits & 0x8000000000000000ULL) != 0)
+                    bits = 0ULL - bits;
+                break;
+            case KindFloat64: bits = f64_to_bits(std::fabs(bits_to_f64(bits))); break;
+            default: ASSERT(false); break;
         }
+        push_bits64(vm, kind, bits);
     }
 
     template <typename T> static bool builtin_min_or_max_fn(ebuiltinoperation_t operation, T left, T right) { return operation == BuiltInMin ? right < left : right > left; }
@@ -480,128 +479,97 @@ namespace ncore
     {
         const ebuiltinoperation_t operation = builtin_function_operation(function);
         const evaluekind_t        kind      = builtin_function_kind(function);
+
+        // Note: This is purely for those operations that require floating point values.
+        // The other operations will assert on the kind when they are executed.
         switch (operation)
         {
-            case BuiltInAbs: execute_builtin_abs(vm, kind); break;
             case BuiltInSin:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_sin_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_sin_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInCos:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_cos_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_cos_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInTan:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_tan_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_tan_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInAsin:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_asin_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_asin_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInAcos:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_acos_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_acos_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInAtan:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_atan_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_atan_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInPow:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_pow_float32(vm); break;
-                    case KindFloat64: execute_builtin_pow_float64(vm); break;
-                    default: ASSERT(false); break;
-                }
-                break;
             case BuiltInSqrt:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_unary_float32(vm, builtin_sqrt_float32); break;
-                    case KindFloat64: execute_builtin_unary_float64(vm, builtin_sqrt_float64); break;
-                    default: ASSERT(false); break;
-                }
-                break;
-            case BuiltInMin:
-                switch (value_kind_size(kind))
-                {
-                    case 1:
-                    case 2:
-                    case 4: execute_builtin_min_or_max_32(vm, operation, kind); break;
-                    case 8: execute_builtin_min_or_max_64(vm, operation, kind); break;
-                    default: ASSERT(false); break;
-                }
-                break;
-            case BuiltInMax:
-                switch (value_kind_size(kind))
-                {
-                    case 1:
-                    case 2:
-                    case 4: execute_builtin_min_or_max_32(vm, operation, kind); break;
-                    case 8: execute_builtin_min_or_max_64(vm, operation, kind); break;
-                    default: ASSERT(false); break;
-                }
-                break;
-            case BuiltInMap: execute_builtin_map(vm, kind); break;
+            case BuiltInSlerp: ASSERT(kind == KindFloat32 || kind == KindFloat64); break;
             case BuiltInSmoothStep:
-                switch (kind)
-                {
-                    case KindInt32:
-                    case KindInt64: execute_builtin_fixed_point(vm, operation, kind); break;
-                    case KindFloat32: execute_builtin_smooth_step_float32(vm); break;
-                    case KindFloat64: execute_builtin_smooth_step_float64(vm); break;
-                    default: ASSERT(false); break;
-                }
-                break;
-            case BuiltInRandom:
-                ASSERT(kind == KindInt32);
-                push_bits32(vm, kind, (u32)next_random(vm) & 0x7fffffffU);
-                break;
-            case BuiltInClamp: execute_builtin_clamp(vm, kind); break;
-            case BuiltInLerp:
-                switch (kind)
-                {
-                    case KindInt32:
-                    case KindInt64: execute_builtin_fixed_point(vm, operation, kind); break;
-                    case KindFloat32: execute_builtin_lerp_float32(vm); break;
-                    case KindFloat64: execute_builtin_lerp_float64(vm); break;
-                    default: ASSERT(false); break;
-                }
-                break;
-            case BuiltInSlerp:
-                switch (kind)
-                {
-                    case KindFloat32: execute_builtin_slerp_float32(vm); break;
-                    case KindFloat64: execute_builtin_slerp_float64(vm); break;
-                    default: ASSERT(false); break;
-                }
-                break;
-            default: ASSERT(false); break;
+            case BuiltInLerp: ASSERT(kind == KindInt32 || kind == KindFloat32 || kind == KindInt64 || kind == KindFloat64); break;
+        }
+
+        if (value_kind_is_32_bit(kind))
+        {
+            switch (operation)
+            {
+                case BuiltInAbs: execute_builtin_abs_32(vm, kind); break;
+                case BuiltInSin: execute_builtin_unary_float32(vm, builtin_sin_float32); break;
+                case BuiltInCos: execute_builtin_unary_float32(vm, builtin_cos_float32); break;
+                case BuiltInTan: execute_builtin_unary_float32(vm, builtin_tan_float32); break;
+                case BuiltInAsin: execute_builtin_unary_float32(vm, builtin_asin_float32); break;
+                case BuiltInAcos: execute_builtin_unary_float32(vm, builtin_acos_float32); break;
+                case BuiltInAtan: execute_builtin_unary_float32(vm, builtin_atan_float32); break;
+                case BuiltInPow: execute_builtin_pow_float32(vm); break;
+                case BuiltInSqrt: execute_builtin_unary_float32(vm, builtin_sqrt_float32); break;
+                case BuiltInMin: execute_builtin_min_or_max_32(vm, operation, kind); break;
+                case BuiltInMax: execute_builtin_min_or_max_32(vm, operation, kind); break;
+                case BuiltInMap: execute_builtin_map(vm, kind); break;
+                case BuiltInSmoothStep:
+                    switch (kind)
+                    {
+                        case KindInt32: execute_builtin_fixed_point(vm, operation, kind); break;
+                        case KindFloat32: execute_builtin_smooth_step_float32(vm); break;
+                    }
+                    break;
+                case BuiltInRandom:
+                    ASSERT(kind == KindInt32);
+                    push_bits32(vm, kind, (u32)next_random(vm) & 0x7fffffffU);
+                    break;
+                case BuiltInClamp: execute_builtin_clamp(vm, kind); break;
+                case BuiltInLerp:
+                    switch (kind)
+                    {
+                        case KindInt32: execute_builtin_fixed_point(vm, operation, kind); break;
+                        case KindFloat32: execute_builtin_lerp_float32(vm); break;
+                    }
+                    break;
+                case BuiltInSlerp: execute_builtin_slerp_float32(vm); break;
+                default: ASSERT(false); break;
+            }
+        }
+        else
+        {
+            switch (operation)
+            {
+                case BuiltInAbs: execute_builtin_abs_64(vm, kind); break;
+                case BuiltInSin: execute_builtin_unary_float64(vm, builtin_sin_float64); break;
+                case BuiltInCos: execute_builtin_unary_float64(vm, builtin_cos_float64); break;
+                case BuiltInTan: execute_builtin_unary_float64(vm, builtin_tan_float64); break;
+                case BuiltInAsin: execute_builtin_unary_float64(vm, builtin_asin_float64); break;
+                case BuiltInAcos: execute_builtin_unary_float64(vm, builtin_acos_float64); break;
+                case BuiltInAtan: execute_builtin_unary_float64(vm, builtin_atan_float64); break;
+                case BuiltInPow: execute_builtin_pow_float64(vm); break;
+                case BuiltInSqrt: execute_builtin_unary_float64(vm, builtin_sqrt_float64); break;
+                case BuiltInMin: execute_builtin_min_or_max_64(vm, operation, kind); break;
+                case BuiltInMax: execute_builtin_min_or_max_64(vm, operation, kind); break;
+                case BuiltInMap: execute_builtin_map(vm, kind); break;
+                case BuiltInSmoothStep:
+                    switch (kind)
+                    {
+                        case KindInt64: execute_builtin_fixed_point(vm, operation, kind); break;
+                        case KindFloat64: execute_builtin_smooth_step_float64(vm); break;
+                    }
+                    break;
+                case BuiltInClamp: execute_builtin_clamp(vm, kind); break;
+                case BuiltInLerp:
+                    switch (kind)
+                    {
+                        case KindInt64: execute_builtin_fixed_point(vm, operation, kind); break;
+                        case KindFloat64: execute_builtin_lerp_float64(vm); break;
+                    }
+                    break;
+                case BuiltInSlerp: execute_builtin_slerp_float64(vm); break;
+                default: ASSERT(false); break;
+            }
         }
     }
 
@@ -617,9 +585,5 @@ namespace ncore
         ASSERT((u32)kind < (u32)KindCount);
         return (builtin_function_t)(((u16)operation << 4) | (u16)kind);
     }
-
-    ebuiltinoperation_t builtin_function_operation(builtin_function_t function) { return (ebuiltinoperation_t)((function >> 4) & 0x7fU); }
-    evaluekind_t        builtin_function_kind(builtin_function_t function) { return (evaluekind_t)(function & 0x0fU); }
-    builtin_function_t  instruction_builtin_function(instruction_t instruction) { return (builtin_function_t)((instruction >> 5) & 0x07ffU); }
 
 } // namespace ncore
