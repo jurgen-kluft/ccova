@@ -5,7 +5,7 @@ namespace ncore
 {
     static bool is_active_segment(ememorysegment_t segment) { return segment >= SegmentFrame && segment <= SegmentStack; }
 
-    static const segment_memory_t* segment_for_address(const program_memory_t* memory, address_t address)
+    static const segment_memory_t* s_segment_for_address(const program_memory_t* memory, address_t address)
     {
         ASSERT(memory != nullptr);
         const ememorysegment_t segment = address_segment(address);
@@ -13,7 +13,7 @@ namespace ncore
         return &memory->m_segments[(u32)segment];
     }
 
-    static segment_memory_t* writable_segment_for_address(program_memory_t* memory, address_t address)
+    static segment_memory_t* s_writable_segment_for_address(program_memory_t* memory, address_t address)
     {
         ASSERT(memory != nullptr);
         const ememorysegment_t segment = address_segment(address);
@@ -41,10 +41,10 @@ namespace ncore
     s16       read_s16(const program_memory_t* memory, address_t address) { return (s16)read_u16(memory, address); }
     s32       read_s32(const program_memory_t* memory, address_t address) { return (s32)read_u32(memory, address); }
     s64       read_s64(const program_memory_t* memory, address_t address) { return (s64)read_u64(memory, address); }
-    u8        read_u8(const program_memory_t* memory, address_t address) { return read_u8(segment_for_address(memory, address), address_index(address)); }
-    u16       read_u16(const program_memory_t* memory, address_t address) { return read_u16(segment_for_address(memory, address), address_index(address)); }
-    u32       read_u32(const program_memory_t* memory, address_t address) { return read_u32(segment_for_address(memory, address), address_index(address)); }
-    u64       read_u64(const program_memory_t* memory, address_t address) { return read_u64(segment_for_address(memory, address), address_index(address)); }
+    u8        read_u8(const program_memory_t* memory, address_t address) { return read_u8(s_segment_for_address(memory, address), address_index(address)); }
+    u16       read_u16(const program_memory_t* memory, address_t address) { return read_u16(s_segment_for_address(memory, address), address_index(address)); }
+    u32       read_u32(const program_memory_t* memory, address_t address) { return read_u32(s_segment_for_address(memory, address), address_index(address)); }
+    u64       read_u64(const program_memory_t* memory, address_t address) { return read_u64(s_segment_for_address(memory, address), address_index(address)); }
     f32       read_f32(const program_memory_t* memory, address_t address) { return bits_to_f32(read_u32(memory, address)); }
     f64       read_f64(const program_memory_t* memory, address_t address) { return bits_to_f64(read_u64(memory, address)); }
     address_t read_address(const program_memory_t* memory, address_t address) { return read_u32(memory, address); }
@@ -54,10 +54,10 @@ namespace ncore
     void write_s16(program_memory_t* memory, address_t address, s16 value) { write_u16(memory, address, (u16)value); }
     void write_s32(program_memory_t* memory, address_t address, s32 value) { write_u32(memory, address, (u32)value); }
     void write_s64(program_memory_t* memory, address_t address, s64 value) { write_u64(memory, address, (u64)value); }
-    void write_u8(program_memory_t* memory, address_t address, u8 value) { write_u8(writable_segment_for_address(memory, address), address_index(address), value); }
-    void write_u16(program_memory_t* memory, address_t address, u16 value) { write_u16(writable_segment_for_address(memory, address), address_index(address), value); }
-    void write_u32(program_memory_t* memory, address_t address, u32 value) { write_u32(writable_segment_for_address(memory, address), address_index(address), value); }
-    void write_u64(program_memory_t* memory, address_t address, u64 value) { write_u64(writable_segment_for_address(memory, address), address_index(address), value); }
+    void write_u8(program_memory_t* memory, address_t address, u8 value) { write_u8(s_writable_segment_for_address(memory, address), address_index(address), value); }
+    void write_u16(program_memory_t* memory, address_t address, u16 value) { write_u16(s_writable_segment_for_address(memory, address), address_index(address), value); }
+    void write_u32(program_memory_t* memory, address_t address, u32 value) { write_u32(s_writable_segment_for_address(memory, address), address_index(address), value); }
+    void write_u64(program_memory_t* memory, address_t address, u64 value) { write_u64(s_writable_segment_for_address(memory, address), address_index(address), value); }
     void write_f32(program_memory_t* memory, address_t address, f32 value) { write_u32(memory, address, f32_to_bits(value)); }
     void write_f64(program_memory_t* memory, address_t address, f64 value) { write_u64(memory, address, f64_to_bits(value)); }
     void write_address(program_memory_t* memory, address_t destination, address_t value) { write_u32(memory, destination, value); }
