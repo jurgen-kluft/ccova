@@ -92,7 +92,7 @@ namespace ncore
 
     static void execute_builtin_min_or_max_32(vm_t* vm, ebuiltinoperation_t operation, evaluekind_t kind)
     {
-        ASSERT(operation == BuiltInMin);
+        ASSERT(operation == BuiltInMin || operation == BuiltInMax);
         ASSERT(value_kind_is_32_bit(kind));
 
         const u32 right_bits   = pop_bits32(vm, kind);
@@ -115,7 +115,7 @@ namespace ncore
 
     static void execute_builtin_min_or_max_64(vm_t* vm, ebuiltinoperation_t operation, evaluekind_t kind)
     {
-        ASSERT(operation == BuiltInMin);
+        ASSERT(operation == BuiltInMin || operation == BuiltInMax);
         ASSERT(value_kind_is_64_bit(kind));
 
         const u64 right_bits   = pop_bits64(vm, kind);
@@ -604,4 +604,22 @@ namespace ncore
             default: ASSERT(false); break;
         }
     }
+
+    instruction_t make_builtin_instruction(builtin_function_t function)
+    {
+        ASSERT(function <= 0x07ffU);
+        return (instruction_t)((u16)OpBuiltIn | ((function & 0x07ffU) << 5));
+    }
+
+    builtin_function_t make_builtin_function(ebuiltinoperation_t operation, evaluekind_t kind)
+    {
+        ASSERT((u32)operation < 128U);
+        ASSERT((u32)kind < (u32)KindCount);
+        return (builtin_function_t)(((u16)operation << 4) | (u16)kind);
+    }
+
+    ebuiltinoperation_t builtin_function_operation(builtin_function_t function) { return (ebuiltinoperation_t)((function >> 4) & 0x7fU); }
+    evaluekind_t        builtin_function_kind(builtin_function_t function) { return (evaluekind_t)(function & 0x0fU); }
+    builtin_function_t  instruction_builtin_function(instruction_t instruction) { return (builtin_function_t)((instruction >> 5) & 0x07ffU); }
+
 } // namespace ncore

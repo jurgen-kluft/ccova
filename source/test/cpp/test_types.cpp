@@ -1,6 +1,7 @@
 #include "ccore/c_target.h"
 
 #include "ccova/types.h"
+#include "ccova/builtins.h"
 
 #include "cunittest/cunittest.h"
 

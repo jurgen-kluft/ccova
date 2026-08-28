@@ -24,30 +24,6 @@ namespace ncore
         OpcodeCount,
     };
 
-    typedef u16 builtin_function_t;
-
-    enum ebuiltinoperation_t : u8
-    {
-        BuiltInOperationInvalid = 0,
-        BuiltInAbs,         // math::abs(value)
-        BuiltInSin,         // math::sin(value)
-        BuiltInCos,         // math::cos(value)
-        BuiltInTan,         // math::tan(value)
-        BuiltInAsin,        // math::asin(value)
-        BuiltInAcos,        // math::acos(value)
-        BuiltInAtan,        // math::atan(value)
-        BuiltInPow,         // math::pow(base, exponent)
-        BuiltInSqrt,        // math::sqrt(value)
-        BuiltInMin,         // math::min(a, b)
-        BuiltInMax,         // math::max(a, b)
-        BuiltInMap,         // math::map(value, inMin, inMax, outMin, outMax)
-        BuiltInRandom,      // math::random() -> int32
-        BuiltInClamp,       // math::clamp(value, min, max)
-        BuiltInSmoothStep,  // math::smoothStep(edge0, edge1, x) or (start, end, t, shift)
-        BuiltInLerp,        // math::lerp(a, b, t) or (start, end, t, shift)
-        BuiltInSlerp,       // math::slerp(a, b, t)
-    };
-
     enum earithmeticop_t : u8
     {
         ArithmeticInvalid = 0,
@@ -76,22 +52,22 @@ namespace ncore
 
     enum evaluekind_t : u8
     {
-        KindNone = 0,
-        KindVoid,
-        KindBool,
-        KindByte,
-        KindInt8,
-        KindInt16,
-        KindInt32,
-        KindInt64,
-        KindUint8,
-        KindUint16,
-        KindUint32,
-        KindUint64,
-        KindFloat32,
-        KindFloat64,
-        KindAddress,
-        KindCount,
+        KindNone    = 0,  // size = 0
+        KindVoid    = 1,  // size = 0
+        KindBool    = 2,  // size = 1
+        KindByte    = 3,  // size = 1
+        KindInt8    = 4,  // size = 1
+        KindUint8   = 5,  // size = 1
+        KindInt16   = 6,  // size = 2
+        KindUint16  = 7,  // size = 2
+        KindInt32   = 8,  // size = 4
+        KindUint32  = 9,  // size = 4
+        KindFloat32 = 10, // size = 4
+        KindAddress = 11, // size = 4
+        KindInt64   = 12, // size = 8
+        KindUint64  = 13, // size = 8
+        KindFloat64 = 14, // size = 8
+        KindCount   = 15,
     };
 
     enum ememorysegment_t : u8
@@ -113,32 +89,49 @@ namespace ncore
 
     static const u32 AddressIndexMask = 0x00ffffffU;
 
-    u32 value_kind_size(evaluekind_t kind);
-    bool value_kind_is_32_bit(evaluekind_t kind);
-    bool value_kind_is_64_bit(evaluekind_t kind);
+    inline u32 value_kind_size(evaluekind_t kind)
+    {
+        ASSERT((u32)kind < (u32)KindCount);
+        switch (kind)
+        {
+            case KindNone: 
+            case KindVoid: return 0;
+            case KindBool: 
+            case KindByte: 
+            case KindInt8: 
+            case KindUint8: return 1;
+            case KindInt16:
+            case KindUint16: return 2;
+            case KindInt32: 
+            case KindUint32: 
+            case KindFloat32: 
+            case KindAddress: return 4;
+            case KindInt64: 
+            case KindUint64: 
+            case KindFloat64: return 8;
+            default: CC_ASSUME(0); 
+        }
+        return 0;
+    }
+    inline bool value_kind_is_32_bit(evaluekind_t kind) { return kind < KindInt64; }
+    inline bool value_kind_is_64_bit(evaluekind_t kind) { return kind >= KindInt64; }
 
     instruction_t make_instruction(eopcode_t opcode, evaluekind_t kind);
     instruction_t make_arithmetic_instruction(evaluekind_t kind, earithmeticop_t operation);
     instruction_t make_address_instruction(ememorysegment_t segment);
     instruction_t make_compare_instruction(evaluekind_t kind, ecompareop_t operation);
     instruction_t make_convert_instruction(evaluekind_t from, evaluekind_t to);
-    instruction_t make_builtin_instruction(builtin_function_t function);
 
-    builtin_function_t  make_builtin_function(ebuiltinoperation_t operation, evaluekind_t kind);
-    ebuiltinoperation_t builtin_function_operation(builtin_function_t function);
-    evaluekind_t        builtin_function_kind(builtin_function_t function);
+    inline eopcode_t        instruction_opcode(instruction_t instruction) { return (eopcode_t)(instruction & 0x1fU); }
+    inline evaluekind_t     instruction_kind(instruction_t instruction) { return (evaluekind_t)((instruction >> 6) & 0x0fU); }
+    inline earithmeticop_t  instruction_arithmetic_op(instruction_t instruction) { return (earithmeticop_t)((instruction >> 10) & 0x3fU); }
+    inline ememorysegment_t instruction_address_segment(instruction_t instruction) { return (ememorysegment_t)((instruction >> 6) & 0x03ffU); }
+    inline ecompareop_t     instruction_compare_op(instruction_t instruction) { return (ecompareop_t)((instruction >> 10) & 0x3fU); }
+    inline evaluekind_t     instruction_convert_from_kind(instruction_t instruction) { return (evaluekind_t)((instruction >> 10) & 0x0fU); }
 
-    eopcode_t          instruction_opcode(instruction_t instruction);
-    evaluekind_t       instruction_kind(instruction_t instruction);
-    earithmeticop_t    instruction_arithmetic_op(instruction_t instruction);
-    ememorysegment_t   instruction_address_segment(instruction_t instruction);
-    ecompareop_t       instruction_compare_op(instruction_t instruction);
-    evaluekind_t       instruction_convert_from_kind(instruction_t instruction);
-    builtin_function_t instruction_builtin_function(instruction_t instruction);
-
-    address_t        make_address(ememorysegment_t segment, u32 index);
-    ememorysegment_t address_segment(address_t address);
-    u32              address_index(address_t address);
+    address_t               make_address(ememorysegment_t segment, u32 index);
+    inline ememorysegment_t address_segment(address_t address) { return (ememorysegment_t)((address >> 24) & 0xffU); }
+    inline u32              address_index(address_t address) { return address & AddressIndexMask; }
 
     ASSERTCTS(sizeof(instruction_t) == 2, "instruction ABI must be 16-bit");
     ASSERTCTS(sizeof(address_t) == 4, "address ABI must be 32-bit");

@@ -2,23 +2,12 @@
 
 namespace ncore
 {
-    static const u8 s_value_kind_sizes[KindCount] = {
-        0, 0, 1, 1, 1, 2, 4, 8, 1, 2, 4, 8, 4, 8, 4,
-    };
-
-    u32 value_kind_size(evaluekind_t kind)
-    {
-        ASSERT((u32)kind < (u32)KindCount);
-        return s_value_kind_sizes[(u32)kind];
-    }
-
-    bool value_kind_is_32_bit(evaluekind_t kind)
-    {
-        const u32 size = value_kind_size(kind);
-        return size > 0 && size <= 4;
-    }
-
-    bool value_kind_is_64_bit(evaluekind_t kind) { return value_kind_size(kind) == 8; }
+    // Layout of the instruction_t type:
+    // 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
+    // |  opcode  |   kind   |     operation     |
+    // opcode: 5 bits (0-31)
+    // kind: 4 bits (0-15)
+    // operation: 6 bits (0-63)
 
     instruction_t make_instruction(eopcode_t opcode, evaluekind_t kind)
     {
@@ -54,30 +43,6 @@ namespace ncore
         return (instruction_t)((u16)OpConvert | (((u16)to & 0x0fU) << 6) | (((u16)from & 0x0fU) << 10));
     }
 
-    instruction_t make_builtin_instruction(builtin_function_t function)
-    {
-        ASSERT(function <= 0x07ffU);
-        return (instruction_t)((u16)OpBuiltIn | ((function & 0x07ffU) << 5));
-    }
-
-    builtin_function_t make_builtin_function(ebuiltinoperation_t operation, evaluekind_t kind)
-    {
-        ASSERT((u32)operation < 128U);
-        ASSERT((u32)kind < (u32)KindCount);
-        return (builtin_function_t)(((u16)operation << 4) | (u16)kind);
-    }
-
-    ebuiltinoperation_t builtin_function_operation(builtin_function_t function) { return (ebuiltinoperation_t)((function >> 4) & 0x7fU); }
-    evaluekind_t builtin_function_kind(builtin_function_t function) { return (evaluekind_t)(function & 0x0fU); }
-
-    eopcode_t        instruction_opcode(instruction_t instruction) { return (eopcode_t)(instruction & 0x1fU); }
-    evaluekind_t     instruction_kind(instruction_t instruction) { return (evaluekind_t)((instruction >> 6) & 0x0fU); }
-    earithmeticop_t  instruction_arithmetic_op(instruction_t instruction) { return (earithmeticop_t)((instruction >> 10) & 0x3fU); }
-    ememorysegment_t instruction_address_segment(instruction_t instruction) { return (ememorysegment_t)((instruction >> 6) & 0x03ffU); }
-    ecompareop_t     instruction_compare_op(instruction_t instruction) { return (ecompareop_t)((instruction >> 10) & 0x3fU); }
-    evaluekind_t     instruction_convert_from_kind(instruction_t instruction) { return (evaluekind_t)((instruction >> 10) & 0x0fU); }
-    builtin_function_t instruction_builtin_function(instruction_t instruction) { return (builtin_function_t)((instruction >> 5) & 0x07ffU); }
-
     address_t make_address(ememorysegment_t segment, u32 index)
     {
         ASSERT(segment > SegmentInvalid && segment < SegmentCount);
@@ -85,6 +50,4 @@ namespace ncore
         return ((u32)segment << 24) | index;
     }
 
-    ememorysegment_t address_segment(address_t address) { return (ememorysegment_t)((address >> 24) & 0xffU); }
-    u32              address_index(address_t address) { return address & AddressIndexMask; }
 } // namespace ncore

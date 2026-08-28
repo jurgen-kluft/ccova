@@ -1,6 +1,7 @@
 #include "ccore/c_target.h"
 
 #include "ccova/float_bits.h"
+#include "ccova/builtins.h"
 #include "ccova/image.h"
 #include "ccova/vm.h"
 

@@ -406,26 +406,27 @@ const (
 	KindBool
 	KindByte
 	KindInt8
-	KindInt16
-	KindInt32
-	KindInt64
 	KindUint8
+	KindInt16
 	KindUint16
+	KindInt32
 	KindUint32
-	KindUint64
 	KindFloat32
-	KindFloat64
 	KindAddress
+	KindInt64
+	KindUint64
+	KindFloat64
 	KindCount
 )
 
 var valueKindSize = [KindCount]uint32{
 	KindNone: 0, KindVoid: 0,
 	KindBool: 1, KindByte: 1,
-	KindInt8: 1, KindInt16: 2, KindInt32: 4, KindInt64: 8,
-	KindUint8: 1, KindUint16: 2, KindUint32: 4, KindUint64: 8,
-	KindFloat32: 4, KindFloat64: 8,
+	KindInt8: 1, KindUint8: 1,
+	KindInt16: 2, KindUint16: 2,
+	KindInt32: 4, KindUint32: 4, KindFloat32: 4,
 	KindAddress: 4, // Assuming a 32-bit address space
+	KindInt64:   8, KindUint64: 8, KindFloat64: 8,
 }
 
 func (kind ValueKind) Size() uint32 {
