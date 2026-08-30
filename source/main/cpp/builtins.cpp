@@ -495,6 +495,7 @@ namespace ncore
             case BuiltInSlerp: ASSERT(kind == KindFloat32 || kind == KindFloat64); break;
             case BuiltInSmoothStep:
             case BuiltInLerp: ASSERT(kind == KindInt32 || kind == KindFloat32 || kind == KindInt64 || kind == KindFloat64); break;
+            default: break;
         }
 
         if (value_kind_is_32_bit(kind))
@@ -518,6 +519,7 @@ namespace ncore
                     {
                         case KindInt32: execute_builtin_fixed_point(vm, operation, kind); break;
                         case KindFloat32: execute_builtin_smooth_step_float32(vm); break;
+                        default: break;
                     }
                     break;
                 case BuiltInRandom:
@@ -530,6 +532,7 @@ namespace ncore
                     {
                         case KindInt32: execute_builtin_fixed_point(vm, operation, kind); break;
                         case KindFloat32: execute_builtin_lerp_float32(vm); break;
+                        default: break;
                     }
                     break;
                 case BuiltInSlerp: execute_builtin_slerp_float32(vm); break;
@@ -557,6 +560,7 @@ namespace ncore
                     {
                         case KindInt64: execute_builtin_fixed_point(vm, operation, kind); break;
                         case KindFloat64: execute_builtin_smooth_step_float64(vm); break;
+                        default: break;
                     }
                     break;
                 case BuiltInClamp: execute_builtin_clamp(vm, kind); break;
@@ -565,6 +569,7 @@ namespace ncore
                     {
                         case KindInt64: execute_builtin_fixed_point(vm, operation, kind); break;
                         case KindFloat64: execute_builtin_lerp_float64(vm); break;
+                        default: break;
                     }
                     break;
                 case BuiltInSlerp: execute_builtin_slerp_float64(vm); break;
