@@ -504,7 +504,10 @@ func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 		}
 		return vm.PushBits(kind, vm.nextRandom()&0x7fffffff)
 	}
-	if (operation == BuiltInLerp || operation == BuiltInSmoothStep) && (kind == KindInt32 || kind == KindInt64) {
+	if operation == BuiltInLerp || operation == BuiltInSlerp || operation == BuiltInSmoothStep {
+		if kind == KindFloat32 || kind == KindFloat64 {
+			return vm.executeBuiltInFloatInterpolation(operation, kind)
+		}
 		return vm.executeBuiltInFixedPoint(operation, kind)
 	}
 	if kind != KindFloat32 && kind != KindFloat64 {
@@ -529,8 +532,6 @@ func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 		apply = math.Atan
 	case BuiltInSqrt:
 		apply = math.Sqrt
-	case BuiltInSmoothStep, BuiltInLerp, BuiltInSlerp:
-		return vm.executeBuiltInFloatInterpolation(operation, kind)
 	default:
 		return VMStatusInvalidOpcode
 	}
@@ -684,6 +685,11 @@ func (vm *VM) executeBuiltInClamp(kind ValueKind) VMStatus {
 }
 
 func (vm *VM) executeBuiltInFloatInterpolation(operation BuiltInOperation, kind ValueKind) VMStatus {
+	_, status := vm.PopBits(KindUint8)
+	if status != VMStatusOK {
+		return status
+	}
+
 	pop := func() (float64, VMStatus) {
 		if kind == KindFloat32 {
 			value, status := vm.PopFloat32()

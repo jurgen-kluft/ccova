@@ -151,9 +151,9 @@ func TestCompileAndRunRemainingMathBuiltIns(t *testing.T) {
 float64 script_main() {
 	return math::map(5, 0, 10, 0, 100)
 		+ math::clamp(12, 0, 10)
-		+ math::smoothStep(0, 10, 5)
-		+ math::lerp(10, 20, 0.5)
-		+ math::slerp(1, 1, 0.5);
+		+ math::smoothStep(0.0, 10, 5, 8)
+		+ math::lerp(10, 20, 0.5, 8)
+		+ math::slerp(1, 1, 0.5, 8);
 }
 `
 	linked := mustLinkProgram(t, script, 0, 0)

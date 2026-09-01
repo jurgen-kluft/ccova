@@ -75,28 +75,28 @@ int script_main() {
 	if got := binary.LittleEndian.Uint32(imageA[20:24]); got != linked.FrameByteSize {
 		t.Fatalf("serialized frame byte size = %d, want %d", got, linked.FrameByteSize)
 	}
-	functionDisplacement := int32(binary.LittleEndian.Uint32(imageA[24:28]))
+	functionDisplacement := int64(binary.LittleEndian.Uint64(imageA[24:32]))
 	functionOffset := int64(24) + int64(functionDisplacement)
 	if functionDisplacement == 0 || functionOffset < ProgramImageHeaderSize || functionOffset >= int64(len(imageA)) {
 		t.Fatalf("invalid relative functions pointer: displacement=%d target=%d", functionDisplacement, functionOffset)
 	}
-	if got := binary.LittleEndian.Uint32(imageA[28:32]); got != uint32(len(linked.Functions)) {
+	if got := binary.LittleEndian.Uint64(imageA[32:40]); got != uint64(len(linked.Functions)) {
 		t.Fatalf("serialized function count = %d, want %d", got, len(linked.Functions))
 	}
 	arrayHeaders := []struct {
 		offset int
 		length int
 	}{
-		{24, len(linked.Functions)},
-		{32, len(linked.ParamKinds)},
-		{40, len(linked.ParamOffsets)},
-		{48, len(linked.Text)},
-		{56, len(linked.ConstData)},
-		{64, len(linked.DataData)},
+		{24 + (0 * 16), len(linked.Functions)},
+		{24 + (1 * 16), len(linked.ParamKinds)},
+		{24 + (2 * 16), len(linked.ParamOffsets)},
+		{24 + (3 * 16), len(linked.Text)},
+		{24 + (4 * 16), len(linked.ConstData)},
+		{24 + (5 * 16), len(linked.DataData)},
 	}
 	for _, header := range arrayHeaders {
-		displacement := int32(binary.LittleEndian.Uint32(imageA[header.offset : header.offset+4]))
-		if got := binary.LittleEndian.Uint32(imageA[header.offset+4 : header.offset+8]); got != uint32(header.length) {
+		displacement := int64(binary.LittleEndian.Uint64(imageA[header.offset : header.offset+8]))
+		if got := binary.LittleEndian.Uint64(imageA[header.offset+8 : header.offset+16]); got != uint64(header.length) {
 			t.Fatalf("array length at %d = %d, want %d", header.offset, got, header.length)
 		}
 		if (displacement == 0) != (header.length == 0) {

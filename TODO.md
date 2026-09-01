@@ -17,9 +17,9 @@
   - `float time::frame_time()`
   - Timers (`0 <= id < N`)
     - `void time::timer_start(id, timeout_ms)`
-    - `void time::timer_reset(id)`
-    - `bool time::timer_query(id)`
     - `void time::timer_stop(id)`
+    - `void time::timer_reset(id)`
+    - `bool time::timer_elapsed(id)`
 
 - [DONE] math
   - `math::min`, `math::max`

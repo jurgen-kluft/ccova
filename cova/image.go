@@ -93,7 +93,7 @@ func imageUint32FromInt(value int) (uint32, bool) {
 
 func encodeProgramImage(image *ProgramImage) ([]byte, error) {
 	var buffer bytes.Buffer
-	options := codestream.Options{PointerIs64Bit: false, Endian: binary.LittleEndian, Verbose: false}
+	options := codestream.Options{Endian: binary.LittleEndian, Verbose: false}
 	stream := codestream.NewCodeStream(options)
 	if !stream.WriteStream(&buffer, image) {
 		var descr string
@@ -107,7 +107,7 @@ func encodeProgramImage(image *ProgramImage) ([]byte, error) {
 
 func decodeProgramImage(blob []byte) (*ProgramImage, error) {
 	image := &ProgramImage{}
-	options := codestream.Options{PointerIs64Bit: false, Endian: binary.LittleEndian, Verbose: false}
+	options := codestream.Options{Endian: binary.LittleEndian, Verbose: false}
 	stream := codestream.NewCodeStream(options)
 	if !stream.ReadStream(bytes.NewReader(blob), image) {
 		var descr string
