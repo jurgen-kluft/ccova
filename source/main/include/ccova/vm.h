@@ -47,6 +47,22 @@ namespace ncore
     u32  pop_bits32(vm_t* vm, evaluekind_t kind);
     void push_bits64(vm_t* vm, evaluekind_t kind, u64 bits);
     u64  pop_bits64(vm_t* vm, evaluekind_t kind);
+
+    inline u8  pop_u8(vm_t* vm) { return (u8)pop_bits32(vm, KindUint8); }
+    inline u16 pop_u16(vm_t* vm) { return (u16)pop_bits32(vm, KindUint16); }
+    inline u32 pop_u32(vm_t* vm) { return (u32)pop_bits32(vm, KindUint32); }
+    inline i32 pop_i32(vm_t* vm) { return (i32)pop_bits32(vm, KindInt32); }
+    inline u64 pop_u64(vm_t* vm) { return (u64)pop_bits64(vm, KindUint64); }
+    inline i64 pop_i64(vm_t* vm) { return (i64)pop_bits64(vm, KindInt64); }
+
+    template <typename T> inline T* pop_data_pointer(vm_t* vm)
+    {
+        const address_t        address = pop_bits32(vm, KindAddress);
+        const ememorysegment_t segment = address_segment(address);
+        const u32              index   = address_index(address);
+        return reinterpret_cast<T*>(vm->m_memory.m_segments[segment].m_data + index);
+    }
+
 } // namespace ncore
 
 #endif

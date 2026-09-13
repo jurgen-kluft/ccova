@@ -10,7 +10,7 @@ import (
 
 const (
 	ProgramImageMagic               = uint32('C') | uint32('O')<<8 | uint32('V')<<16 | uint32('A')<<24
-	ProgramImageVersion      uint16 = 4
+	ProgramImageVersion      uint32 = 0x00010004
 	ProgramImageEndianLittle uint8  = 1
 	ProgramImageABI          uint8  = 1
 
@@ -46,9 +46,10 @@ type ProgramImageFunction struct {
 
 type ProgramImage struct {
 	Magic         uint32
-	Version       uint16
+	Version       uint32
 	Endian        uint8
 	ABI           uint8
+	Reserved      uint16
 	EntryPoint    uint32
 	BSSByteSize   uint32
 	FrameSize     uint32
