@@ -10,6 +10,7 @@ namespace ncore
     enum ebuiltinoperation_t : u8
     {
         BuiltInOperationInvalid = 0,
+        // math
         BuiltInAbs,        // math::abs(value)
         BuiltInSin,        // math::sin(value)
         BuiltInCos,        // math::cos(value)
@@ -27,6 +28,12 @@ namespace ncore
         BuiltInSmoothStep, // math::smoothStep(edge0, edge1, x) or (start, end, t, shift)
         BuiltInLerp,       // math::lerp(a, b, t) or (start, end, t, shift)
         BuiltInSlerp,      // math::slerp(a, b, t)
+        // time
+        BuiltInFrameTime,    // time::frameTime() -> float32
+        BuiltInTimerStart,   // time::timerStart(int32 id, u32 timeout_ms)
+        BuiltInTimerStop,    // time::timerStop(int32 id)
+        BuiltInTimerReset,   // time::timerReset(int32 id)
+        BuiltInTimerElapsed, // time::timerElapsed(int32 id) -> float32
     };
 
     typedef u16 builtin_function_t;

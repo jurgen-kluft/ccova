@@ -155,6 +155,47 @@ func LookupNamedType(name string) *Type {
 	return namedTypes[name]
 }
 
+func PromoteType(left *Type, right *Type) (*Type, bool) {
+	if left == nil || right == nil {
+		return nil, false
+	}
+
+	if left.Kind == right.Kind {
+		return left, true
+	}
+
+	// Promote between signed and unsigned integers of the same size
+	if left.IsSignedInteger() && right.IsUnsignedInteger() {
+		if left.Size >= right.Size {
+			return left, true
+		}
+		return nil, false
+	}
+	if left.IsUnsignedInteger() && right.IsSignedInteger() {
+		if right.Size >= left.Size {
+			return right, true
+		}
+		return nil, false
+	}
+
+	// Promote between signed/unsigned integers and floats
+	if (left.IsSignedInteger() || left.IsUnsignedInteger()) && right.IsFloat() {
+		return right, true
+	}
+	if (right.IsSignedInteger() || right.IsUnsignedInteger()) && left.IsFloat() {
+		return left, true
+	}
+
+	// Also promote between float32 and float64
+	if left.IsFloat() && right.IsFloat() {
+		if left.Size >= right.Size {
+			return left, true
+		}
+		return right, true
+	}
+	return nil, false
+}
+
 func QualifiedType(base *Type, isConst bool) *Type {
 	if base == nil {
 		return nil

@@ -59,9 +59,10 @@ namespace ncore
     struct linked_program_t
     {
         u32                                 m_magic;
-        u16                                 m_version;
+        u32                                 m_version;
         u8                                  m_endian;
         u8                                  m_abi;
+        u16                                 m_reserved;
         u32                                 m_entry_point;
         u32                                 m_bss_byte_size;
         u32                                 m_frame_size;

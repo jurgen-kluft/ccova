@@ -10,7 +10,7 @@ import (
 
 const (
 	ProgramImageMagic               = uint32('C') | uint32('O')<<8 | uint32('V')<<16 | uint32('A')<<24
-	ProgramImageVersion      uint16 = 4
+	ProgramImageVersion      uint32 = 0x00010004
 	ProgramImageEndianLittle uint8  = 1
 	ProgramImageABI          uint8  = 1
 
@@ -46,9 +46,10 @@ type ProgramImageFunction struct {
 
 type ProgramImage struct {
 	Magic         uint32
-	Version       uint16
+	Version       uint32
 	Endian        uint8
 	ABI           uint8
+	Reserved      uint16
 	EntryPoint    uint32
 	BSSByteSize   uint32
 	FrameSize     uint32
@@ -93,7 +94,7 @@ func imageUint32FromInt(value int) (uint32, bool) {
 
 func encodeProgramImage(image *ProgramImage) ([]byte, error) {
 	var buffer bytes.Buffer
-	options := codestream.Options{PointerIs64Bit: false, Endian: binary.LittleEndian, Verbose: false}
+	options := codestream.Options{Endian: binary.LittleEndian, Verbose: false}
 	stream := codestream.NewCodeStream(options)
 	if !stream.WriteStream(&buffer, image) {
 		var descr string
@@ -107,7 +108,7 @@ func encodeProgramImage(image *ProgramImage) ([]byte, error) {
 
 func decodeProgramImage(blob []byte) (*ProgramImage, error) {
 	image := &ProgramImage{}
-	options := codestream.Options{PointerIs64Bit: false, Endian: binary.LittleEndian, Verbose: false}
+	options := codestream.Options{Endian: binary.LittleEndian, Verbose: false}
 	stream := codestream.NewCodeStream(options)
 	if !stream.ReadStream(bytes.NewReader(blob), image) {
 		var descr string

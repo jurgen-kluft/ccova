@@ -85,9 +85,6 @@ namespace ncore
     };
 
     typedef u16 instruction_t;
-    typedef u32 address_t;
-
-    static const u32 AddressIndexMask = 0x00ffffffU;
 
     inline u32 value_kind_size(evaluekind_t kind)
     {
@@ -128,6 +125,9 @@ namespace ncore
     inline ememorysegment_t instruction_address_segment(instruction_t instruction) { return (ememorysegment_t)((instruction >> 6) & 0x03ffU); }
     inline ecompareop_t     instruction_compare_op(instruction_t instruction) { return (ecompareop_t)((instruction >> 10) & 0x3fU); }
     inline evaluekind_t     instruction_convert_from_kind(instruction_t instruction) { return (evaluekind_t)((instruction >> 10) & 0x0fU); }
+
+    typedef u32 address_t;
+    static const u32 AddressIndexMask = 0x00ffffffU;
 
     address_t               make_address(ememorysegment_t segment, u32 index);
     inline ememorysegment_t address_segment(address_t address) { return (ememorysegment_t)((address >> 24) & 0xffU); }
