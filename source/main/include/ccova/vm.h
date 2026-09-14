@@ -11,10 +11,10 @@ namespace ncore
     typedef void (*extern_dispatcher_fn)(void* host_context, vm_t* vm, u32 import_id);
 
     struct call_frame_t
-    {
-        u32          m_return_pc;
-        u32          m_local_base;
-        evaluekind_t m_return_kind;
+    {                                   // sizeof(call_frame_t) = 8 bytes
+        u32          m_local_base;      // Base index for local variables in the call frame
+        u32          m_return_pc : 24;  // Return program counter for the call frame (byte offset)
+        evaluekind_t m_return_kind : 8; // Return value kind for the call frame
     };
 
     struct vm_t

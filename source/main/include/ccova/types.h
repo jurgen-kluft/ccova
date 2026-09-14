@@ -73,15 +73,14 @@ namespace ncore
     enum ememorysegment_t : u8
     {
         SegmentInvalid = 0,
-        SegmentFrame,
-        SegmentBSS,
-        SegmentExtern,
-        SegmentConst,
-        SegmentData,
-        SegmentStack,
-        SegmentReserved0,
-        SegmentReserved1,
-        SegmentCount,
+        SegmentFrame,     // Frame segment (local variables)
+        SegmentBSS,       // Uninitialized global/static variables
+        SegmentExtern,    // Externally defined variables
+        SegmentConst,     // Constant data
+        SegmentData,      // Initialized global/static variables
+        SegmentStack,     // Stack segment (function call stack)
+        SegmentReserved0, // Reserved segment 0
+        SegmentCount,     // Total number of segments (8)
     };
 
     typedef u16 instruction_t;
@@ -91,22 +90,22 @@ namespace ncore
         ASSERT((u32)kind < (u32)KindCount);
         switch (kind)
         {
-            case KindNone: 
+            case KindNone:
             case KindVoid: return 0;
-            case KindBool: 
-            case KindByte: 
-            case KindInt8: 
+            case KindBool:
+            case KindByte:
+            case KindInt8:
             case KindUint8: return 1;
             case KindInt16:
             case KindUint16: return 2;
-            case KindInt32: 
-            case KindUint32: 
-            case KindFloat32: 
+            case KindInt32:
+            case KindUint32:
+            case KindFloat32:
             case KindAddress: return 4;
-            case KindInt64: 
-            case KindUint64: 
+            case KindInt64:
+            case KindUint64:
             case KindFloat64: return 8;
-            default: CC_ASSUME(0); 
+            default: CC_ASSUME(0);
         }
         return 0;
     }
@@ -126,7 +125,7 @@ namespace ncore
     inline ecompareop_t     instruction_compare_op(instruction_t instruction) { return (ecompareop_t)((instruction >> 10) & 0x3fU); }
     inline evaluekind_t     instruction_convert_from_kind(instruction_t instruction) { return (evaluekind_t)((instruction >> 10) & 0x0fU); }
 
-    typedef u32 address_t;
+    typedef u32      address_t;
     static const u32 AddressIndexMask = 0x00ffffffU;
 
     address_t               make_address(ememorysegment_t segment, u32 index);
@@ -135,8 +134,8 @@ namespace ncore
 
     ASSERTCTS(sizeof(instruction_t) == 2, "instruction ABI must be 16-bit");
     ASSERTCTS(sizeof(address_t) == 4, "address ABI must be 32-bit");
-    ASSERTCTS(OpcodeCount < 32, "opcode count must fit the instruction encoding");
-    ASSERTCTS(KindCount <= 16, "value kind must fit four bits");
+    ASSERTCTS(OpcodeCount <= 32, "opcode count must fit 5 bits");
+    ASSERTCTS(KindCount <= 16, "value kind must fit 4 bits");
 } // namespace ncore
 
 #endif
