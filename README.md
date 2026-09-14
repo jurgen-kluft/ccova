@@ -6,7 +6,14 @@ The language is designed for small host-integrated scripts that work with primit
 
 ## What It Supports
 
-- Primitive types: `bool`, `byte`, `int8`/`i8`, `int16`/`i16`, `int32`/`int`/`i32`, `int64`/`i64`, `uint8`/`char`/`u8`, `uint16`/`u16`, `uint32`/`u32`, `uint64`/`u64`, `float32`/`float`/`f32`, `float64`/`double`/`f64`
+- Primitive types: 
+  - `bool`, `byte`/`char`
+  - `int8`/`i8`, `uint8`/`u8`
+  - `int16`/`i16`, `uint16`/`u16`
+  - `int32`/`i32`, `uint32`/`u32`
+  - `int64`/`i64`, `uint64`/`u64`
+  - `float32`/`float`/`f32`
+  - `float64`/`double`/`f64`
 - Top-level globals and named structs with naturally aligned fields
 - Fixed arrays with expression indexing and chained struct member access
 - Typed, block-scoped local variables inside functions
@@ -15,7 +22,10 @@ The language is designed for small host-integrated scripts that work with primit
 - Arithmetic, comparison, logical, unary, modulo, bitwise, and shift expressions
 - Arithmetic, bitwise, and shift compound assignments
 - Control flow: `if`, `if/else`, `while`, `for`, `switch`, `break`, `continue`, `return`
-- Math built-ins: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sqrt`, `pow`
+- Math built-ins: 
+  - `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sqrt`, `pow`
+  - `min`, `max`, `clamp`, `map`
+  - `random`, `smoothstep`, `interpolate`, `lerp`, `slerp`
 - `//` single-line and `/* ... */` block comments
 - `extern` variables with naturally aligned offsets assigned in source order
 - `extern(slot)` functions dispatched by the host
