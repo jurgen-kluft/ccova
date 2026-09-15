@@ -12,16 +12,16 @@ namespace ncore
         ASSERTS(CC_OFFSETOF(script_function_t, m_frame_byte_size) == 12, "script function frame size ABI mismatch");
         ASSERTS(CC_OFFSETOF(script_function_t, m_return_kind) == 16, "script function return kind ABI mismatch");
         ASSERTS(CC_OFFSETOF(linked_program_t, m_magic) == 0, "program magic ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_entry_point) == 8, "program entry point ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_bss_byte_size) == 12, "program BSS size ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_frame_size) == 16, "program frame size ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_frame_byte_size) == 20, "program frame byte size ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_functions) == 24, "program functions ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_param_kinds) == 32, "program parameter kinds ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_param_offsets) == 40, "program parameter offsets ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_text) == 48, "program text ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_const_data) == 56, "program const data ABI mismatch");
-        ASSERTS(CC_OFFSETOF(linked_program_t, m_data_data) == 64, "program data ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_entry_point) == 12, "program entry point ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_bss_byte_size) == 16, "program BSS size ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_frame_size) == 20, "program frame size ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_frame_byte_size) == 24, "program frame byte size ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_functions) == 28, "program functions ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_param_kinds) == 36, "program parameter kinds ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_param_offsets) == 44, "program parameter offsets ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_text) == 52, "program text ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_const_data) == 60, "program const data ABI mismatch");
+        ASSERTS(CC_OFFSETOF(linked_program_t, m_data_data) == 68, "program data ABI mismatch");
     }
 
     const linked_program_t* open_program_image(const byte* block, u32 block_size)

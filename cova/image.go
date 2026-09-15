@@ -17,7 +17,7 @@ const (
 	ProgramImageStringHeaderSize = 8
 	ProgramImageArrayHeaderSize  = 8
 	ProgramImageFunctionSize     = 20
-	ProgramImageHeaderSize       = 72
+	ProgramImageHeaderSize       = 76
 )
 
 type ProgramImageValueKind uint8

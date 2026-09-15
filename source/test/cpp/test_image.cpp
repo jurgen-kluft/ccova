@@ -32,13 +32,13 @@ namespace
     static void write_image_header(byte* block, u32 entry_point, u32 bss_byte_size, u32 frame_size, u32 frame_byte_size)
     {
         write_le_u32(block, ProgramImageMagic);
-        write_le_u16(block + 4, ProgramImageVersion);
-        block[6] = ProgramImageEndianLittle;
-        block[7] = ProgramImageABI;
-        write_le_u32(block + 8, entry_point);
-        write_le_u32(block + 12, bss_byte_size);
-        write_le_u32(block + 16, frame_size);
-        write_le_u32(block + 20, frame_byte_size);
+        write_le_u32(block + 4, ProgramImageVersion);
+        block[8] = ProgramImageEndianLittle;
+        block[9] = ProgramImageABI;
+        write_le_u32(block + 12, entry_point);
+        write_le_u32(block + 16, bss_byte_size);
+        write_le_u32(block + 20, frame_size);
+        write_le_u32(block + 24, frame_byte_size);
     }
 }
 
@@ -55,16 +55,16 @@ UNITTEST_SUITE_BEGIN(cova_image)
             byte* block = (byte*)aligned_storage;
             write_image_header(block, 0, 12, 1, 4);
 
-            const u32 functions_offset     = 72;
-            const u32 param_kinds_offset   = 112;
-            const u32 param_offsets_offset = 116;
-            const u32 text_offset          = 120;
-            write_array_header(block, 24, 2, functions_offset);
-            write_array_header(block, 32, 1, param_kinds_offset);
-            write_array_header(block, 40, 1, param_offsets_offset);
-            write_array_header(block, 48, 4, text_offset);
-            write_array_header(block, 56, 0, 0);
-            write_array_header(block, 64, 0, 0);
+            const u32 functions_offset     = 76;
+            const u32 param_kinds_offset   = 116;
+            const u32 param_offsets_offset = 120;
+            const u32 text_offset          = 124;
+            write_array_header(block, 28, 2, functions_offset);
+            write_array_header(block, 36, 1, param_kinds_offset);
+            write_array_header(block, 44, 1, param_offsets_offset);
+            write_array_header(block, 52, 4, text_offset);
+            write_array_header(block, 60, 0, 0);
+            write_array_header(block, 68, 0, 0);
             write_function(block, functions_offset, 0, 0, 0, 0, KindVoid);
             write_function(block, functions_offset + ProgramImageFunctionSize, 2, 0, 1, 4, KindInt32);
             block[param_kinds_offset] = KindInt32;
@@ -92,16 +92,16 @@ UNITTEST_SUITE_BEGIN(cova_image)
             byte* block = (byte*)aligned_storage;
             write_image_header(block, 0, 4, 0, 0);
 
-            const u32 functions_offset = 72;
-            const u32 text_offset      = 92;
-            const u32 const_offset     = 100;
-            const u32 data_offset      = 104;
-            write_array_header(block, 24, 1, functions_offset);
-            write_array_header(block, 32, 0, 0);
-            write_array_header(block, 40, 0, 0);
-            write_array_header(block, 48, 8, text_offset);
-            write_array_header(block, 56, 3, const_offset);
-            write_array_header(block, 64, 4, data_offset);
+            const u32 functions_offset = 76;
+            const u32 text_offset      = 96;
+            const u32 const_offset     = 104;
+            const u32 data_offset      = 108;
+            write_array_header(block, 28, 1, functions_offset);
+            write_array_header(block, 36, 0, 0);
+            write_array_header(block, 44, 0, 0);
+            write_array_header(block, 52, 8, text_offset);
+            write_array_header(block, 60, 3, const_offset);
+            write_array_header(block, 68, 4, data_offset);
             write_function(block, functions_offset, 0, 0, 0, 0, KindInt32);
             write_le_u16(block + text_offset, make_instruction(OpPush, KindInt32));
             write_le_u32(block + text_offset + 2, 42);
