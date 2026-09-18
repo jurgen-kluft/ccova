@@ -113,9 +113,11 @@ UNITTEST_SUITE_BEGIN(cova_image)
 
             byte frame[16] = {}, bss[8] = {}, external[8] = {}, data[8] = {}, stack[16] = {};
             call_frame_t call_frames[2] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_vm(&vm, call_frames, 2, {frame, 16, 16}, {bss, 0, 8}, {external, 8, 8}, {data, 0, 8}, {stack, 0, 16});
-            run_vm_image(&vm, block, data_offset + 4);
+            initialize_vm(&vm, {call_frames, 0, 2}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame, 16, 16}, {bss, 0, 8}, {external, 8, 8}, {data, 0, 8}, {stack, 0, 16});
+            run_vm_image(&vm, block, data_offset + 4, 0);
 
             CHECK_TRUE(vm.m_program == (const linked_program_t*)block);
             CHECK_EQUAL((u32)42, pop_bits32(&vm, KindInt32));

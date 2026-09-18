@@ -200,7 +200,7 @@ int script_main() {
 		t.Fatalf("LoadProgramImage failed: %s", status)
 	}
 	for run := 0; run < 2; run++ {
-		if status := vm.RunLoaded(); status != VMStatusOK {
+		if status := vm.RunLoaded(0); status != VMStatusOK {
 			t.Fatalf("RunLoaded %d failed: %s", run, status)
 		}
 		if got, status := vm.PopInt32(); status != VMStatusOK || got != 6 {
@@ -222,7 +222,7 @@ func TestVMRunImageRejectsCorruptBlob(t *testing.T) {
 		t.Fatalf("BuildProgramImage failed: %s", status)
 	}
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.RunImage(image[:len(image)-1]); status != VMStatusInvalidImage {
+	if status := vm.RunImage(image[:len(image)-1], 0); status != VMStatusInvalidImage {
 		t.Fatalf("RunImage status = %s, want invalid image", status)
 	}
 }

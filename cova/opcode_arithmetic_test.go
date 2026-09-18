@@ -60,7 +60,7 @@ func runOpcodeProgram(t *testing.T, code CodeMemory, returnKind ValueKind) (*VM,
 		FrameByteSize: 16,
 	}
 	vm := NewVMWithConfig(VMConfig{FrameCapacity: 32, StackCapacity: 128, CallFrameCapacity: 8})
-	return vm, vm.Run(program)
+	return vm, vm.Run(program, 0)
 }
 
 func runOpcodeResult(t *testing.T, code CodeMemory, returnKind ValueKind) uint64 {

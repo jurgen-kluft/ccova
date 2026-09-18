@@ -11,6 +11,12 @@ type callFrame struct {
 	returnKind ValueKind
 }
 
+type timerSlot struct {
+	durationMS uint32
+	endTimeMS  uint64
+	active     bool
+}
+
 type VM struct {
 	memory           ProgramMemory
 	pc               uint32
@@ -25,15 +31,22 @@ type VM struct {
 	randomSeed       uint64
 	randomS0         uint64
 	randomS1         uint64
+	currentTimeMS    uint64
+	tickTime         float32
+	hasCurrentTime   bool
+	timers           []timerSlot
 }
 
 const defaultRandomSeed uint64 = 0x1234567890abcdef
 const randomStateSeed uint64 = 6364136223846793005
+const defaultTimerCapacity uint32 = 8
+const maxTimerCapacity uint32 = 256
 
 type VMConfig struct {
 	FrameCapacity     uint32
 	StackCapacity     uint32
 	CallFrameCapacity uint32
+	TimerCapacity     uint32
 }
 
 func NewVM(frameCapacity uint32) *VM {
@@ -41,6 +54,7 @@ func NewVM(frameCapacity uint32) *VM {
 		FrameCapacity:     frameCapacity,
 		StackCapacity:     256,
 		CallFrameCapacity: 8,
+		TimerCapacity:     defaultTimerCapacity,
 	})
 }
 
@@ -48,10 +62,17 @@ func NewVMWithConfig(config VMConfig) *VM {
 	if config.CallFrameCapacity < 1 {
 		config.CallFrameCapacity = 1
 	}
+	if config.TimerCapacity == 0 {
+		config.TimerCapacity = defaultTimerCapacity
+	}
+	if config.TimerCapacity > maxTimerCapacity {
+		config.TimerCapacity = maxTimerCapacity
+	}
 	vm := &VM{
 		memory:     NewProgramMemory(0, 0, 0, 0, config.FrameCapacity, config.StackCapacity),
 		callFrames: make([]callFrame, config.CallFrameCapacity),
 		fault:      noVMFault(),
+		timers:     make([]timerSlot, config.TimerCapacity),
 	}
 	vm.SetRandomSeed(defaultRandomSeed)
 	return vm
@@ -221,18 +242,18 @@ func (vm *VM) PopFloat64() (float64, VMStatus) {
 	return math.Float64frombits(bits), status
 }
 
-func (vm *VM) Run(program *LinkedProgram) VMStatus {
+func (vm *VM) Run(program *LinkedProgram, nowMS uint64) VMStatus {
 	if status := vm.LoadProgram(program); status != VMStatusOK {
 		return status
 	}
-	return vm.RunLoaded()
+	return vm.RunLoaded(nowMS)
 }
 
-func (vm *VM) RunImage(blob []byte) VMStatus {
+func (vm *VM) RunImage(blob []byte, nowMS uint64) VMStatus {
 	if status := vm.LoadProgramImage(blob); status != VMStatusOK {
 		return status
 	}
-	return vm.RunLoaded()
+	return vm.RunLoaded(nowMS)
 }
 
 func (vm *VM) LoadProgram(program *LinkedProgram) VMStatus {
@@ -313,10 +334,19 @@ func (vm *VM) Reset() VMStatus {
 	return VMStatusOK
 }
 
-func (vm *VM) RunLoaded() VMStatus {
+func (vm *VM) RunLoaded(nowMS uint64) VMStatus {
 	if status := vm.Reset(); status != VMStatusOK {
 		return status
 	}
+	if vm.hasCurrentTime && nowMS < vm.currentTimeMS {
+		return vm.setFault(VMStatusInvalidParameter, -1, -1, -1)
+	}
+	vm.tickTime = 0
+	if vm.hasCurrentTime {
+		vm.tickTime = float32(nowMS-vm.currentTimeMS) / 1000
+	}
+	vm.currentTimeMS = nowMS
+	vm.hasCurrentTime = true
 	program := vm.program
 	for vm.pc < uint32(len(program.Text)) {
 		vm.instructionPC = vm.pc
@@ -486,6 +516,61 @@ func (vm *VM) RunLoaded() VMStatus {
 func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 	operation := function.Operation()
 	kind := function.Kind()
+	if operation == BuiltInTickTime {
+		if kind != KindFloat32 {
+			return VMStatusInvalidValueKind
+		}
+		return vm.PushFloat32(vm.tickTime)
+	}
+	if operation == BuiltInTimerStart {
+		if kind != KindVoid {
+			return VMStatusInvalidValueKind
+		}
+		durationMS, status := vm.PopUint32()
+		if status != VMStatusOK {
+			return status
+		}
+		id, status := vm.PopUint8()
+		if status != VMStatusOK {
+			return status
+		}
+		timer, status := vm.timer(id)
+		if status != VMStatusOK {
+			return status
+		}
+		timer.durationMS = durationMS
+		timer.endTimeMS = saturatingAddUint64(vm.currentTimeMS, uint64(durationMS))
+		timer.active = true
+		return VMStatusOK
+	}
+	if operation == BuiltInTimerStop || operation == BuiltInTimerReset || operation == BuiltInTimerDone {
+		expectedKind := KindVoid
+		if operation == BuiltInTimerDone {
+			expectedKind = KindBool
+		}
+		if kind != expectedKind {
+			return VMStatusInvalidValueKind
+		}
+		id, status := vm.PopUint8()
+		if status != VMStatusOK {
+			return status
+		}
+		timer, status := vm.timer(id)
+		if status != VMStatusOK {
+			return status
+		}
+		switch operation {
+		case BuiltInTimerStop:
+			timer.active = false
+			return VMStatusOK
+		case BuiltInTimerReset:
+			timer.endTimeMS = saturatingAddUint64(vm.currentTimeMS, uint64(timer.durationMS))
+			timer.active = true
+			return VMStatusOK
+		default:
+			return vm.PushBool(timer.active && vm.currentTimeMS > timer.endTimeMS)
+		}
+	}
 	if operation == BuiltInAbs {
 		return vm.executeBuiltInAbs(kind)
 	}
@@ -547,6 +632,20 @@ func (vm *VM) executeBuiltIn(function BuiltInFunction) VMStatus {
 		return status
 	}
 	return vm.PushFloat64(apply(value))
+}
+
+func (vm *VM) timer(id uint8) (*timerSlot, VMStatus) {
+	if int(id) >= len(vm.timers) {
+		return nil, VMStatusInvalidParameter
+	}
+	return &vm.timers[id], VMStatusOK
+}
+
+func saturatingAddUint64(left, right uint64) uint64 {
+	if ^uint64(0)-left < right {
+		return ^uint64(0)
+	}
+	return left + right
 }
 
 type orderedNumber interface {

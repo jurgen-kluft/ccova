@@ -134,7 +134,7 @@ func TestRunRejectsTruncatedInstructionWithoutPanic(t *testing.T) {
 		Functions:  []ScriptFunctionDescriptor{{BodyAddress: 0, ReturnKind: KindVoid}},
 	}
 
-	if status := NewVM(0).Run(program); status != VMStatusMalformedBytecode {
+	if status := NewVM(0).Run(program, 0); status != VMStatusMalformedBytecode {
 		t.Fatalf("expected malformed bytecode status, got %s", status)
 	}
 }
@@ -149,7 +149,7 @@ func TestRunRejectsTruncatedOperandWithoutPanic(t *testing.T) {
 		Functions:  []ScriptFunctionDescriptor{{BodyAddress: 0, ReturnKind: KindVoid}},
 	}
 
-	if status := NewVM(0).Run(program); status != VMStatusMalformedBytecode {
+	if status := NewVM(0).Run(program, 0); status != VMStatusMalformedBytecode {
 		t.Fatalf("expected malformed bytecode status, got %s", status)
 	}
 }

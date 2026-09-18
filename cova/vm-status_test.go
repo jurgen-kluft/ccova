@@ -65,7 +65,7 @@ func TestLoadDoesNotRejectHostExecutionCapacities(t *testing.T) {
 	if status := vm.LoadProgram(program); status != VMStatusOK {
 		t.Fatalf("LoadProgram rejected host capacity policy: %s", status)
 	}
-	if status := vm.RunLoaded(); status != VMStatusStackOverflow {
+	if status := vm.RunLoaded(0); status != VMStatusStackOverflow {
 		t.Fatalf("RunLoaded status = %s, want stack overflow", status)
 	}
 	fault := vm.FaultInfo()
@@ -93,7 +93,7 @@ func TestExternDispatcherReceivesContextAndHostFailureIsPreserved(t *testing.T) 
 		return VMStatusInvalidParameter
 	})
 
-	if status := vm.Run(program); status != VMStatusHostFailure {
+	if status := vm.Run(program, 0); status != VMStatusHostFailure {
 		t.Fatalf("Run status = %s, want host failure", status)
 	}
 	fault := vm.FaultInfo()
@@ -127,7 +127,7 @@ func TestOpOffsetRejectsAddressIndexUnderflowAndOverflow(t *testing.T) {
 				EntryPoint: 0,
 				Functions:  []ScriptFunctionDescriptor{{BodyAddress: 0, ReturnKind: KindAddress}},
 			}
-			if status := NewVM(0).Run(program); status != VMStatusInvalidAddress {
+			if status := NewVM(0).Run(program, 0); status != VMStatusInvalidAddress {
 				t.Fatalf("Run status = %s, want invalid address", status)
 			}
 		})

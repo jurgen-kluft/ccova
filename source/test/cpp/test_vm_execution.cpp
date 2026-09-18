@@ -20,9 +20,9 @@ namespace
         append_u32(text, value);
     }
 
-    static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
+    static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, u64* timer_end_time_ms, u32* timer_duration_ms, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
     {
-        initialize_vm(vm, call_frames, 8, {frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 64});
+        initialize_vm(vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 64});
     }
 
     static void initialize_program(linked_program_t* program, const byte* text, u32 text_size, const script_function_t* functions, u32 function_count, const evaluekind_t* param_kinds = nullptr, const u32* param_offsets = nullptr, u32 param_count = 0)
@@ -77,12 +77,14 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
-            CHECK_EQUAL((u32)0, vm.m_call_frame_count);
+            CHECK_EQUAL((u32)0, vm.m_call_frames.m_count);
         }
 
         UNITTEST_TEST(bitwise_modulo_and_masked_shifts)
@@ -112,9 +114,11 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((u32)-16, pop_bits32(&vm, KindInt32));
         }
@@ -141,13 +145,114 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((f64)8.0, bits_to_f64(pop_bits64(&vm, KindFloat64)));
             CHECK_EQUAL((f32)3.0f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
             CHECK_EQUAL((u32)7, pop_bits32(&vm, KindInt32));
+        }
+
+        UNITTEST_TEST(time_tick_builtin)
+        {
+            byte text_storage[32] = {};
+            segment_memory_t text = {text_storage, 0, 32};
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInTickTime, KindFloat32)));
+            emit_instruction(&text, make_instruction(OpRet, KindNone));
+
+            const script_function_t functions[] = {{0, 0, 0, 0, KindFloat32}};
+            linked_program_t program;
+            initialize_program(&program, text_storage, text.m_size, functions, 1);
+
+            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
+            call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t vm;
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+
+            run_vm(&vm, &program, 1000);
+            CHECK_EQUAL((f32)0.0f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
+            run_loaded_vm(&vm, 1250);
+            CHECK_EQUAL((f32)0.25f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
+            run_loaded_vm(&vm, 1250);
+            CHECK_EQUAL((f32)0.0f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
+        }
+
+        UNITTEST_TEST(random_state_persists_across_ticks)
+        {
+            byte text_storage[16] = {};
+            segment_memory_t text = {text_storage, 0, 16};
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInRandom, KindInt32)));
+            emit_instruction(&text, make_instruction(OpRet, KindNone));
+
+            const script_function_t functions[] = {{0, 0, 0, 0, KindInt32}};
+            linked_program_t program;
+            initialize_program(&program, text_storage, text.m_size, functions, 1);
+
+            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
+            call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t vm;
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+
+            run_vm(&vm, &program, 0);
+            const u32 first = pop_bits32(&vm, KindInt32);
+            run_vm(&vm, &program, 0);
+            const u32 second = pop_bits32(&vm, KindInt32);
+            CHECK_TRUE(first != second);
+
+            load_program(&vm, &program);
+            run_loaded_vm(&vm, 0);
+            CHECK_EQUAL(first, pop_bits32(&vm, KindInt32));
+        }
+
+        UNITTEST_TEST(time_timer_builtins)
+        {
+            byte text_storage[64] = {};
+            segment_memory_t text = {text_storage, 0, 64};
+            emit_instruction(&text, make_address_instruction(SegmentExtern));
+            emit_u32(&text, 0);
+            emit_instruction(&text, make_instruction(OpDereference, KindBool));
+            emit_instruction(&text, make_instruction(OpJumpIfFalse, KindNone));
+            const u32 start_target_operand = text.m_size;
+            emit_u32(&text, 0);
+            emit_instruction(&text, make_instruction(OpPush, KindUint8));
+            append_u8(&text, 0);
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInTimerDone, KindBool)));
+            emit_instruction(&text, make_instruction(OpRet, KindNone));
+            const u32 start_target = text.m_size;
+            emit_instruction(&text, make_instruction(OpPush, KindUint8));
+            append_u8(&text, 0);
+            emit_push_u32(&text, KindUint32, 100);
+            emit_instruction(&text, make_builtin_instruction(make_builtin_function(BuiltInTimerStart, KindVoid)));
+            emit_instruction(&text, make_instruction(OpPush, KindBool));
+            append_u8(&text, 0);
+            emit_instruction(&text, make_instruction(OpRet, KindNone));
+            write_u32(&text, start_target_operand, start_target);
+
+            const script_function_t functions[] = {{0, 0, 0, 0, KindBool}};
+            linked_program_t program;
+            initialize_program(&program, text_storage, text.m_size, functions, 1);
+
+            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
+            call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t vm;
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+
+            run_vm(&vm, &program, 1000);
+            CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
+            external[0] = 1;
+            run_vm(&vm, &program, 1100);
+            CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
+            run_loaded_vm(&vm, 1101);
+            CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
         }
 
         UNITTEST_TEST(typed_min_max_builtins)
@@ -175,9 +280,11 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((f64)9.5, bits_to_f64(pop_bits64(&vm, KindFloat64)));
             CHECK_EQUAL((u32)4000000000U, pop_bits32(&vm, KindUint32));
@@ -205,9 +312,11 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((u32)0x12345678U, pop_bits32(&vm, KindUint32));
             CHECK_EQUAL((u32)0x12345678U, read_u32(&vm.m_memory, make_address(SegmentExtern, 4)));
@@ -239,9 +348,11 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((u32)42, pop_bits32(&vm, KindUint32));
         }
@@ -273,9 +384,11 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
-            run_vm(&vm, &program);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((u32)8, pop_bits32(&vm, KindInt32));
             CHECK_EQUAL((u32)0, vm.m_frame_top);
@@ -296,11 +409,13 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
 
             byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[64] = {};
             call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t vm;
-            initialize_test_vm(&vm, call_frames, frame, bss, external, data, stack);
+            initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
             u32 import_id = 0;
             register_extern_dispatcher(&vm, &import_id, extern_add_one);
-            run_vm(&vm, &program);
+            run_vm(&vm, &program, 0);
 
             CHECK_EQUAL((u32)7, import_id);
             CHECK_EQUAL((u32)10, pop_bits32(&vm, KindUint32));

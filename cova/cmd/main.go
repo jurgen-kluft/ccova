@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"time"
 
 	cova "github.com/jurgen-kluft/ccova/cova"
 )
@@ -62,7 +63,7 @@ void reduce_health(int delta) {
 		return cova.VMStatusOK
 	})
 
-	checkStatus(vm.Run(linked))
+	checkStatus(vm.Run(linked, uint64(time.Now().UnixMilli())))
 	fmt.Printf("hostPlayerHealth=%d\n", int(int32(binary.LittleEndian.Uint32(externMemory[4:]))))
 }
 func check(err error) {

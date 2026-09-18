@@ -17,31 +17,58 @@ namespace ncore
         evaluekind_t m_return_kind : 8; // Return value kind for the call frame
     };
 
+    struct vm_call_frames_t
+    {
+        call_frame_t* m_frames;
+        u32           m_count;
+        u32           m_capacity;
+    };
+
+    static const u32 VMDefaultTimerCapacity = 8;
+    static const u32 VMMaxTimerCapacity     = 256;
+
+    struct vm_timers_t
+    {
+        u64* m_end_time_ms;
+        u32* m_duration_ms;
+        u32  m_capacity;
+    };
+
+    struct vm_random_t
+    {
+        u64 m_seed;
+        u64 m_s0;
+        u64 m_s1;
+    };
+
     struct vm_t
     {
         program_memory_t        m_memory;
         u32                     m_pc;
+        u32                     m_frame_top;
         const linked_program_t* m_program;
         void*                   m_host_context;
         extern_dispatcher_fn    m_extern_dispatcher;
-        call_frame_t*           m_call_frames;
-        u32                     m_call_frame_count;
-        u32                     m_call_frame_capacity;
-        u32                     m_frame_top;
-        u64                     m_random_seed;
-        u64                     m_random_s0;
-        u64                     m_random_s1;
+        vm_call_frames_t        m_call_frames;
+        vm_random_t             m_random;
+        vm_timers_t             m_timers;
+        u64                     m_current_time_ms;
+        f32                     m_tick_time;
+        bool                    m_has_current_time;
     };
 
-    void initialize_vm(vm_t* vm, call_frame_t* call_frames, u32 call_frame_capacity, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack);
+    // A VM binds to one program. Reloading that program resets its persistent script state.
+    void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack);
     void load_program(vm_t* vm, const linked_program_t* program);
     void load_program_image(vm_t* vm, const byte* block, u32 block_size);
+    // Restarts transient execution state without resetting globals, random state, timers, or time.
     void reset_vm(vm_t* vm);
     void register_extern_dispatcher(vm_t* vm, void* host_context, extern_dispatcher_fn dispatcher);
 
-    void run_vm(vm_t* vm, const linked_program_t* program);
-    void run_vm_image(vm_t* vm, const byte* block, u32 block_size);
-    void run_loaded_vm(vm_t* vm);
+    // Each run executes one logic tick of the VM's bound program.
+    void run_vm(vm_t* vm, const linked_program_t* program, u64 now_ms);
+    void run_vm_image(vm_t* vm, const byte* block, u32 block_size, u64 now_ms);
+    void run_loaded_vm(vm_t* vm, u64 now_ms);
 
     void push_bits32(vm_t* vm, evaluekind_t kind, u32 bits);
     u32  pop_bits32(vm_t* vm, evaluekind_t kind);

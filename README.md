@@ -45,6 +45,8 @@ String literals are stored in a CONST segment as NUL-terminated byte strings. Ze
 
 Booleans use numeric truthiness at runtime: `false` is `0`, and any non-zero value is true. Logical operators short-circuit and produce normalized `0` or `1` results.
 
+The native C++ runtime binds each VM to one program. Loading initializes its BSS, DATA, and random state; each subsequent run is one logic tick that preserves that state while restarting stack, frame, and call execution state. Explicitly reloading the same program restores its initial script state. Use a separate VM for each program.
+
 ## VM Workspace Policy
 
 The host owns execution workspace sizing. `VMConfig.FrameCapacity`, `StackCapacity`, and `CallFrameCapacity` are fixed limits selected from the application's memory budget; the compiler and linker do not infer aggregate frame use, maximum operand-stack height, or maximum call depth. `LoadProgram` validates the program image independently of these limits. A limit that is too small produces `VMStatusFrameOverflow`, `VMStatusStackOverflow`, or `VMStatusCallFrameOverflow` only if execution reaches the operation that needs more workspace.

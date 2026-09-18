@@ -44,7 +44,7 @@ func benchmarkRunLoaded(b *testing.B, linked *LinkedProgram, operationsPerRun ui
 	b.ResetTimer()
 	var status VMStatus
 	for index := 0; index < b.N; index++ {
-		status = vm.RunLoaded()
+		status = vm.RunLoaded(0)
 	}
 	b.StopTimer()
 	b.ReportMetric(float64(operationsPerRun)*float64(b.N)/b.Elapsed().Seconds(), "script-iterations/s")

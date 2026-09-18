@@ -163,7 +163,7 @@ func runOptimizerTestProgram(t *testing.T, source string, optimize bool) int32 {
 		t.Fatalf("Link failed")
 	}
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %s", status)
 	}
 	offset := linked.DebugSymbols.Symbols["result"].ByteOffset

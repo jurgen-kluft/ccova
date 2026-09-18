@@ -29,11 +29,11 @@ namespace ncore
         BuiltInLerp,       // math::lerp(a, b, t) or (start, end, t, shift)
         BuiltInSlerp,      // math::slerp(a, b, t)
         // time
-        BuiltInFrameTime,    // time::frameTime() -> float32
-        BuiltInTimerStart,   // time::timerStart(int32 id, u32 timeout_ms)
-        BuiltInTimerStop,    // time::timerStop(int32 id)
-        BuiltInTimerReset,   // time::timerReset(int32 id)
-        BuiltInTimerElapsed, // time::timerElapsed(int32 id) -> float32
+        BuiltInTickTime,   // time::tickTime() -> f32
+        BuiltInTimerStart, // time::timerStart(u8 id, u32 duration_ms)
+        BuiltInTimerStop,  // time::timerStop(u8 id)
+        BuiltInTimerReset, // time::timerReset(u8 id)
+        BuiltInTimerDone,  // time::timerDone(u8 id) -> bool
     };
 
     typedef u16 builtin_function_t;

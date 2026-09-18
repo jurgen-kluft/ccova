@@ -35,15 +35,15 @@ namespace ncore
 
     static call_frame_t* s_current_frame(vm_t* vm)
     {
-        ASSERT(vm->m_call_frame_count != 0);
-        return &vm->m_call_frames[vm->m_call_frame_count - 1];
+        ASSERT(vm->m_call_frames.m_count != 0);
+        return &vm->m_call_frames.m_frames[vm->m_call_frames.m_count - 1];
     }
 
     static void s_enter_script_function(vm_t* vm, u32 function_index, u32 return_pc, bool pop_arguments)
     {
         ASSERT(vm->m_program != nullptr);
         ASSERT(function_index < vm->m_program->m_functions.m_size);
-        ASSERT(vm->m_call_frame_count < vm->m_call_frame_capacity);
+        ASSERT(vm->m_call_frames.m_count < vm->m_call_frames.m_capacity);
 
         const script_function_t& function = vm->m_program->m_functions[function_index];
         ASSERT(function.m_param_start <= vm->m_program->m_param_kinds.m_size);
@@ -84,19 +84,23 @@ namespace ncore
             }
         }
 
-        call_frame_t* call_frame  = &vm->m_call_frames[vm->m_call_frame_count];
+        call_frame_t* call_frame  = &vm->m_call_frames.m_frames[vm->m_call_frames.m_count];
         call_frame->m_return_pc   = return_pc;
         call_frame->m_local_base  = local_base;
         call_frame->m_return_kind = function.m_return_kind;
-        ++vm->m_call_frame_count;
+        ++vm->m_call_frames.m_count;
         vm->m_frame_top = frame_end;
         vm->m_pc        = function.m_body_address;
     }
 
-    void initialize_vm(vm_t* vm, call_frame_t* call_frames, u32 call_frame_capacity, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack)
+    void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack)
     {
-        ASSERT(call_frames != nullptr);
-        ASSERT(call_frame_capacity != 0);
+        ASSERT(call_frames.m_frames != nullptr);
+        ASSERT(call_frames.m_count == 0);
+        ASSERT(call_frames.m_capacity != 0);
+        ASSERT(timers.m_end_time_ms != nullptr);
+        ASSERT(timers.m_duration_ms != nullptr);
+        ASSERT(timers.m_capacity != 0 && timers.m_capacity <= VMMaxTimerCapacity);
         ASSERT(s_validate_segment_storage(frame));
         ASSERT(s_validate_segment_storage(bss));
         ASSERT(s_validate_segment_storage(external));
@@ -107,20 +111,28 @@ namespace ncore
 
         const segment_memory_t constant = {nullptr, 0, 0};
         initialize_program_memory(&vm->m_memory, frame, bss, external, constant, data, stack);
-        vm->m_pc                  = 0;
-        vm->m_program             = nullptr;
-        vm->m_host_context        = nullptr;
-        vm->m_extern_dispatcher   = nullptr;
-        vm->m_call_frames         = call_frames;
-        vm->m_call_frame_count    = 0;
-        vm->m_call_frame_capacity = call_frame_capacity;
-        vm->m_frame_top           = 0;
+        vm->m_pc                = 0;
+        vm->m_program           = nullptr;
+        vm->m_host_context      = nullptr;
+        vm->m_extern_dispatcher = nullptr;
+        vm->m_call_frames       = call_frames;
+        vm->m_frame_top         = 0;
+        vm->m_timers            = timers;
+        vm->m_current_time_ms   = 0;
+        vm->m_tick_time         = 0.0f;
+        vm->m_has_current_time  = false;
+        for (u32 index = 0; index < timers.m_capacity; ++index)
+        {
+            timers.m_end_time_ms[index] = 0;
+            timers.m_duration_ms[index] = 0;
+        }
         initialize_builtins(vm);
     }
 
     void load_program(vm_t* vm, const linked_program_t* program)
     {
         validate_linked_program(program);
+        ASSERT(vm->m_program == nullptr || vm->m_program == program);
 
         segment_memory_t* bss  = &vm->m_memory.m_segments[SegmentBSS];
         segment_memory_t* data = &vm->m_memory.m_segments[SegmentData];
@@ -135,26 +147,22 @@ namespace ncore
         constant->m_size           = program->m_const_data.m_size;
         constant->m_capacity       = program->m_const_data.m_size;
         vm->m_program              = program;
+        s_clear_data(bss);
+        s_copy_bytes(data, program->m_data_data);
+        reset_builtins(vm);
     }
 
-    void load_program_image(vm_t* vm, const byte* block, u32 block_size)
-    {
-        load_program(vm, open_program_image(block, block_size));
-    }
+    void load_program_image(vm_t* vm, const byte* block, u32 block_size) { load_program(vm, open_program_image(block, block_size)); }
 
     void reset_vm(vm_t* vm)
     {
         ASSERT(vm->m_program != nullptr);
 
-        s_clear_data(&vm->m_memory.m_segments[SegmentBSS]);
-        s_copy_bytes(&vm->m_memory.m_segments[SegmentData], vm->m_program->m_data_data);
         vm->m_memory.m_segments[SegmentStack].m_size = 0;
         s_clear_data(&vm->m_memory.m_segments[SegmentFrame]);
-        vm->m_pc               = 0;
-        vm->m_call_frame_count = 0;
-        vm->m_frame_top        = 0;
-        reset_builtins(vm);
-
+        vm->m_pc                  = 0;
+        vm->m_call_frames.m_count = 0;
+        vm->m_frame_top           = 0;
         const u32 entry_point = vm->m_program->m_entry_point;
         ASSERT(entry_point < vm->m_program->m_functions.m_size);
         ASSERT(vm->m_program->m_functions[entry_point].m_param_count == 0);
@@ -425,33 +433,44 @@ namespace ncore
 
     static bool return_from_function(vm_t* vm)
     {
-        ASSERT(vm->m_call_frame_count != 0);
-        --vm->m_call_frame_count;
-        const call_frame_t& frame = vm->m_call_frames[vm->m_call_frame_count];
+        ASSERT(vm->m_call_frames.m_count != 0);
+        --vm->m_call_frames.m_count;
+        const call_frame_t& frame = vm->m_call_frames.m_frames[vm->m_call_frames.m_count];
         if (frame.m_return_kind != KindNone && frame.m_return_kind != KindVoid)
             ASSERT(value_kind_size(frame.m_return_kind) <= vm->m_memory.m_segments[SegmentStack].m_size);
         vm->m_frame_top = frame.m_local_base;
-        if (vm->m_call_frame_count == 0)
+        if (vm->m_call_frames.m_count == 0)
             return true;
         vm->m_pc = frame.m_return_pc;
         return false;
     }
 
-    void run_vm(vm_t* vm, const linked_program_t* program)
+    void run_vm(vm_t* vm, const linked_program_t* program, u64 now_ms)
     {
-        load_program(vm, program);
-        run_loaded_vm(vm);
+        if (vm->m_program == nullptr)
+            load_program(vm, program);
+        else
+            ASSERT(vm->m_program == program);
+        run_loaded_vm(vm, now_ms);
     }
 
-    void run_vm_image(vm_t* vm, const byte* block, u32 block_size)
+    void run_vm_image(vm_t* vm, const byte* block, u32 block_size, u64 now_ms)
     {
-        load_program_image(vm, block, block_size);
-        run_loaded_vm(vm);
+        const linked_program_t* program = open_program_image(block, block_size);
+        if (vm->m_program == nullptr)
+            load_program(vm, program);
+        else
+            ASSERT(vm->m_program == program);
+        run_loaded_vm(vm, now_ms);
     }
 
-    void run_loaded_vm(vm_t* vm)
+    void run_loaded_vm(vm_t* vm, u64 now_ms)
     {
         reset_vm(vm);
+        ASSERT(!vm->m_has_current_time || now_ms >= vm->m_current_time_ms);
+        vm->m_tick_time          = vm->m_has_current_time ? (f32)(now_ms - vm->m_current_time_ms) / 1000.0f : 0.0f;
+        vm->m_current_time_ms    = now_ms;
+        vm->m_has_current_time   = true;
         const code_memory_t text = {vm->m_program->m_text.data(), vm->m_program->m_text.m_size};
         while (vm->m_pc < text.m_size)
         {

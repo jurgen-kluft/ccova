@@ -38,17 +38,30 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             byte         data_storage[16]  = {};
             byte         stack_storage[16] = {};
             call_frame_t call_frames[4]    = {};
+            u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
 
-            initialize_vm(&vm, call_frames, 4, {frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16});
+            initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16});
 
             CHECK_EQUAL((u32)0, vm.m_pc);
             CHECK_TRUE(vm.m_program == nullptr);
-            CHECK_TRUE(vm.m_call_frames == call_frames);
-            CHECK_EQUAL((u32)0, vm.m_call_frame_count);
-            CHECK_EQUAL((u32)4, vm.m_call_frame_capacity);
+            CHECK_TRUE(vm.m_call_frames.m_frames == call_frames);
+            CHECK_EQUAL((u32)0, vm.m_call_frames.m_count);
+            CHECK_EQUAL((u32)4, vm.m_call_frames.m_capacity);
             CHECK_EQUAL((u32)0, vm.m_frame_top);
             CHECK_TRUE(vm.m_extern_dispatcher == nullptr);
+            CHECK_TRUE(vm.m_timers.m_end_time_ms == timer_end_time_ms);
+            CHECK_TRUE(vm.m_timers.m_duration_ms == timer_duration_ms);
+            CHECK_EQUAL((u32)VMDefaultTimerCapacity, vm.m_timers.m_capacity);
+            CHECK_EQUAL((u64)0, vm.m_current_time_ms);
+            CHECK_EQUAL((f32)0.0f, vm.m_tick_time);
+            CHECK_FALSE(vm.m_has_current_time);
+            for (u32 index = 0; index < VMDefaultTimerCapacity; ++index)
+            {
+                CHECK_EQUAL((u64)0, timer_end_time_ms[index]);
+                CHECK_EQUAL((u32)0, timer_duration_ms[index]);
+            }
         }
 
         UNITTEST_TEST(load_and_reset)
@@ -59,6 +72,8 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             byte         data_storage[16];
             byte         stack_storage[16] = {};
             call_frame_t call_frames[4]    = {};
+            u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
             for (u32 index = 0; index < 32; ++index)
                 frame_storage[index] = 0xffU;
@@ -68,7 +83,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
                 data_storage[index] = 0xffU;
             }
 
-            initialize_vm(&vm, call_frames, 4, {frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16});
+            initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16});
 
             const byte              text[]       = {OpRet, 0};
             const byte              const_data[] = {1, 2, 3};
@@ -96,23 +111,43 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             CHECK_EQUAL((u32)4, vm.m_memory.m_segments[SegmentData].m_size);
             CHECK_EQUAL((u32)3, vm.m_memory.m_segments[SegmentConst].m_size);
             CHECK_EQUAL((u8)2, read_u8(&vm.m_memory, make_address(SegmentConst, 1)));
-
-            append_u32(&vm.m_memory.m_segments[SegmentStack], 0x12345678U);
-            reset_vm(&vm);
-
-            CHECK_EQUAL((u32)0, vm.m_pc);
-            CHECK_EQUAL((u32)1, vm.m_call_frame_count);
-            CHECK_EQUAL((u32)12, vm.m_frame_top);
-            CHECK_EQUAL((u32)0, vm.m_call_frames[0].m_return_pc);
-            CHECK_EQUAL((u32)0, vm.m_call_frames[0].m_local_base);
-            CHECK_EQUAL((u32)KindVoid, (u32)vm.m_call_frames[0].m_return_kind);
-            CHECK_EQUAL((u32)0, vm.m_memory.m_segments[SegmentStack].m_size);
             for (u32 index = 0; index < 6; ++index)
                 CHECK_EQUAL((u8)0, bss_storage[index]);
             for (u32 index = 0; index < 4; ++index)
                 CHECK_EQUAL(data_data[index], data_storage[index]);
+
+            bss_storage[0]  = 8;
+            data_storage[0] = 9;
+            append_u32(&vm.m_memory.m_segments[SegmentStack], 0x12345678U);
+            timer_duration_ms[0] = 100;
+            timer_end_time_ms[0] = 1100;
+            reset_vm(&vm);
+
+            CHECK_EQUAL((u32)0, vm.m_pc);
+            CHECK_EQUAL((u32)1, vm.m_call_frames.m_count);
+            CHECK_EQUAL((u32)12, vm.m_frame_top);
+            CHECK_EQUAL((u32)0, vm.m_call_frames.m_frames[0].m_return_pc);
+            CHECK_EQUAL((u32)0, vm.m_call_frames.m_frames[0].m_local_base);
+            CHECK_EQUAL((u32)KindVoid, (u32)vm.m_call_frames.m_frames[0].m_return_kind);
+            CHECK_EQUAL((u32)0, vm.m_memory.m_segments[SegmentStack].m_size);
+            CHECK_EQUAL((u8)8, bss_storage[0]);
+            CHECK_EQUAL((u8)9, data_storage[0]);
             for (u32 index = 0; index < 32; ++index)
                 CHECK_EQUAL((u8)0, frame_storage[index]);
+            CHECK_EQUAL((u32)100, timer_duration_ms[0]);
+            CHECK_EQUAL((u64)1100, timer_end_time_ms[0]);
+
+            vm.m_current_time_ms  = 1200;
+            vm.m_tick_time        = 0.1f;
+            vm.m_has_current_time = true;
+            load_program(&vm, &program);
+            for (u32 index = 0; index < 6; ++index)
+                CHECK_EQUAL((u8)0, bss_storage[index]);
+            for (u32 index = 0; index < 4; ++index)
+                CHECK_EQUAL(data_data[index], data_storage[index]);
+            CHECK_EQUAL((u64)1200, vm.m_current_time_ms);
+            CHECK_EQUAL((f32)0.1f, vm.m_tick_time);
+            CHECK_TRUE(vm.m_has_current_time);
         }
 
         UNITTEST_TEST(register_extern_dispatcher)
@@ -120,9 +155,11 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             byte         frame_storage[8]  = {};
             byte         stack_storage[8]  = {};
             call_frame_t call_frames[1]    = {};
+            u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
             const segment_memory_t empty = {nullptr, 0, 0};
-            initialize_vm(&vm, call_frames, 1, {frame_storage, 8, 8}, empty, empty, empty, {stack_storage, 0, 8});
+            initialize_vm(&vm, {call_frames, 0, 1}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame_storage, 8, 8}, empty, empty, empty, {stack_storage, 0, 8});
 
             extern_call_t call = {nullptr, 0};
             register_extern_dispatcher(&vm, &call, test_extern_dispatcher);

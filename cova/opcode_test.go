@@ -134,7 +134,7 @@ func testOpcodeCoverageCall(t *testing.T) {
 		},
 	}
 	vm := NewVMWithConfig(VMConfig{StackCapacity: 16, CallFrameCapacity: 2})
-	if status := vm.Run(program); status != VMStatusOK {
+	if status := vm.Run(program, 0); status != VMStatusOK {
 		t.Fatalf("Run status = %s, want ok", status)
 	}
 	if result, status := vm.PopInt32(); status != VMStatusOK || result != 42 {
@@ -154,7 +154,7 @@ func testOpcodeCoverageCallExtern(t *testing.T) {
 		called = importID == 7
 		return VMStatusOK
 	})
-	if status := vm.Run(program); status != VMStatusOK || !called {
+	if status := vm.Run(program, 0); status != VMStatusOK || !called {
 		t.Fatalf("Run status = %s, called=%t, want ok and called", status, called)
 	}
 }
@@ -218,7 +218,7 @@ func TestOpcodeFrameAddressUsesCurrentFrameBase(t *testing.T) {
 		},
 	}
 	vm := NewVMWithConfig(VMConfig{FrameCapacity: 12, StackCapacity: 4, CallFrameCapacity: 2})
-	if status := vm.Run(program); status != VMStatusOK {
+	if status := vm.Run(program, 0); status != VMStatusOK {
 		t.Fatalf("Run status = %s, want ok", status)
 	}
 	bits, status := vm.PopBits(KindAddress)
@@ -365,7 +365,7 @@ func TestOpcodeCallFrameOverflow(t *testing.T) {
 	code.AppendUint32(0)
 	program := &LinkedProgram{Text: code, EntryPoint: 0, Functions: []ScriptFunctionDescriptor{{BodyAddress: 0, ReturnKind: KindVoid}}}
 	vm := NewVMWithConfig(VMConfig{CallFrameCapacity: 1})
-	if status := vm.Run(program); status != VMStatusCallFrameOverflow {
+	if status := vm.Run(program, 0); status != VMStatusCallFrameOverflow {
 		t.Fatalf("Run status = %s, want call-frame overflow", status)
 	}
 }
@@ -394,7 +394,7 @@ func TestOpcodeCallAndReturnAllStorableKinds(t *testing.T) {
 				},
 			}
 			vm := NewVMWithConfig(VMConfig{StackCapacity: 16, CallFrameCapacity: 2})
-			if status := vm.Run(program); status != VMStatusOK {
+			if status := vm.Run(program, 0); status != VMStatusOK {
 				t.Fatalf("Run status = %s, want ok", status)
 			}
 			got, status := vm.PopBits(kind)

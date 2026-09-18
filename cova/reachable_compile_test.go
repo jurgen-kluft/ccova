@@ -124,7 +124,7 @@ int script_main() {
 }
 `, 0, 0)
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %s", status)
 	}
 	value, status := vm.PopInt32()
@@ -152,7 +152,7 @@ int script_main() { return helper(); }
 		t.Fatalf("linkedProgramFromImage failed: %s", status)
 	}
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(program); status != VMStatusOK {
+	if status := vm.Run(program, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %s", status)
 	}
 	value, status := vm.PopInt32()

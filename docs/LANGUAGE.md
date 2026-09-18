@@ -184,7 +184,7 @@ There are two kinds of top-level declarations:
 
 ### Internal globals
 
-Internal globals without an initializer are stored in VM-managed BSS memory and are zero-initialized before execution.
+Internal globals without an initializer are stored in VM-managed BSS memory. The native C++ VM zero-initializes BSS when its program is loaded, then preserves it across logic ticks.
 
 ```c
 int counter;
@@ -192,7 +192,7 @@ float32 ratio;
 bool ready;
 ```
 
-Internal globals with an initializer are stored in writable DATA memory.
+Internal globals with an initializer are stored in writable DATA memory. The native C++ VM installs their initial values when its program is loaded, then preserves mutations across logic ticks. Explicitly reloading the same program restores BSS and DATA. Each VM is permanently bound to one program; another program requires another VM.
 
 ```c
 int retries = 3;
@@ -552,7 +552,7 @@ The three-argument interpolation functions use `float32` unless an operand is 64
 
 The four-argument `smoothStep` and `lerp` overloads use signed fixed-point `int32` or `int64` values. `t` ranges from zero to `1 << shift`; narrower signed inputs promote to `int32`, and `shift` is converted to `uint8`.
 
-`random` returns a nonnegative `int32` from deterministic VM-owned state. Hosts can set the sequence through `set_random_seed(vm, seed)` in C++ or `VM.SetRandomSeed(seed)` in Go. Resetting or rerunning the VM rewinds the sequence to its configured seed.
+`random` returns a nonnegative `int32` from deterministic VM-owned state. Hosts can set the sequence through `set_random_seed(vm, seed)` in C++ or `VM.SetRandomSeed(seed)` in Go. In the native C++ VM, the sequence advances across logic ticks and rewinds when the bound program is explicitly reloaded. The Go VM currently rewinds it when the VM is reset or rerun.
 
 Trigonometric functions, `sqrt`, and `pow` use `float32` unless an operand is 64-bit, in which case they use `float64`. Boolean arguments are rejected.
 

@@ -12,20 +12,20 @@ namespace ncore
 
     static inline u64 next_random(vm_t* vm)
     {
-        u64       s1     = vm->m_random_s0;
-        const u64 s0     = vm->m_random_s1;
+        u64       s1     = vm->m_random.m_s0;
+        const u64 s0     = vm->m_random.m_s1;
         const u64 result = s0 + s1;
-        vm->m_random_s0  = s0;
+        vm->m_random.m_s0  = s0;
         s1 ^= s1 << 23;
-        vm->m_random_s1 = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5);
+        vm->m_random.m_s1 = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5);
         return result;
     }
 
     void reset_builtins(vm_t* vm)
     {
         ASSERT(vm != nullptr);
-        vm->m_random_s0 = vm->m_random_seed + 6364136223846793ULL;
-        vm->m_random_s1 = scRandomStateSeed;
+        vm->m_random.m_s0 = vm->m_random.m_seed + 6364136223846793ULL;
+        vm->m_random.m_s1 = scRandomStateSeed;
         next_random(vm);
         next_random(vm);
     }
@@ -33,14 +33,14 @@ namespace ncore
     void initialize_builtins(vm_t* vm)
     {
         ASSERT(vm != nullptr);
-        vm->m_random_seed = scDefaultRandomSeed;
+        vm->m_random.m_seed = scDefaultRandomSeed;
         reset_builtins(vm);
     }
 
     void set_random_seed(vm_t* vm, u64 seed)
     {
         ASSERT(vm != nullptr);
-        vm->m_random_seed = seed;
+        vm->m_random.m_seed = seed;
         reset_builtins(vm);
     }
 
@@ -475,10 +475,72 @@ namespace ncore
         push_bits64(vm, kind, f64_to_bits(result));
     }
 
+    static inline u64 saturating_add_u64(u64 left, u64 right)
+    {
+        const u64 max_value = ~(u64)0;
+        return max_value - left < right ? max_value : left + right;
+    }
+
+    static inline u32 get_timer_index(vm_t* vm, u8 id)
+    {
+        ASSERT((u32)id < vm->m_timers.m_capacity);
+        return (u32)id;
+    }
+
+    static void execute_builtin_time(vm_t* vm, ebuiltinoperation_t operation, evaluekind_t kind)
+    {
+        switch (operation)
+        {
+            case BuiltInTickTime:
+                ASSERT(kind == KindFloat32);
+                push_bits32(vm, KindFloat32, f32_to_bits(vm->m_tick_time));
+                break;
+            case BuiltInTimerStart:
+            {
+                ASSERT(kind == KindVoid);
+                const u32 duration_ms = pop_u32(vm);
+                const u32 index       = get_timer_index(vm, pop_u8(vm));
+                vm->m_timers.m_duration_ms[index] = duration_ms;
+                vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_current_time_ms, (u64)duration_ms);
+                break;
+            }
+            case BuiltInTimerStop:
+            {
+                ASSERT(kind == KindVoid);
+                const u32 index = get_timer_index(vm, pop_u8(vm));
+                vm->m_timers.m_duration_ms[index] = 0;
+                vm->m_timers.m_end_time_ms[index] = 0;
+                break;
+            }
+            case BuiltInTimerReset:
+            {
+                ASSERT(kind == KindVoid);
+                const u32 index       = get_timer_index(vm, pop_u8(vm));
+                const u32 duration_ms = vm->m_timers.m_duration_ms[index];
+                vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_current_time_ms, (u64)duration_ms);
+                break;
+            }
+            case BuiltInTimerDone:
+            {
+                ASSERT(kind == KindBool);
+                const u32 index = get_timer_index(vm, pop_u8(vm));
+                push_bits32(vm, KindBool, vm->m_timers.m_duration_ms[index] != 0 && vm->m_current_time_ms > vm->m_timers.m_end_time_ms[index] ? 1U : 0U);
+                break;
+            }
+            default: ASSERT(false); break;
+        }
+    }
+
     void execute_builtin(vm_t* vm, builtin_function_t function)
     {
         const ebuiltinoperation_t operation = builtin_function_operation(function);
         const evaluekind_t        kind      = builtin_function_kind(function);
+
+        if (operation >= BuiltInTickTime && operation <= BuiltInTimerDone)
+        {
+            execute_builtin_time(vm, operation, kind);
+            return;
+        }
 
         // Note: This is purely for those operations that require floating point values.
         // The other operations will assert on the kind when they are executed.

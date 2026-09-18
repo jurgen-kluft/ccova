@@ -14,7 +14,7 @@ float64 script_main() {
 `
 	linked := mustLinkProgram(t, script, 0, 0)
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %v", status)
 	}
 	if got, status := vm.PopFloat64(); status != VMStatusOK || got != 14 {
@@ -30,7 +30,7 @@ float32 script_main() {
 `
 	linked := mustLinkProgram(t, script, 0, 0)
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %v", status)
 	}
 	if got, status := vm.PopFloat32(); status != VMStatusOK || got != 11 {
@@ -68,7 +68,7 @@ func TestMathBuiltInsSupportUnsignedAbsAndTypedMinMax(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			linked := mustLinkProgram(t, test.script, 0, 0)
 			vm := NewVM(testFrameCapacityBytes)
-			if status := vm.Run(linked); status != VMStatusOK {
+			if status := vm.Run(linked, 0); status != VMStatusOK {
 				t.Fatalf("Run failed: %v", status)
 			}
 			if got, status := vm.PopBits(test.kind); status != VMStatusOK || got != test.want {
@@ -158,7 +158,7 @@ float64 script_main() {
 `
 	linked := mustLinkProgram(t, script, 0, 0)
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %v", status)
 	}
 	if got, status := vm.PopFloat64(); status != VMStatusOK || math.Abs(got-76.5) > 0.000001 {
@@ -174,7 +174,7 @@ int32 script_main() {
 `
 	linked := mustLinkProgram(t, script, 0, 0)
 	vm := NewVM(testFrameCapacityBytes)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %v", status)
 	}
 	if got, status := vm.PopBits(KindInt32); status != VMStatusOK || int32(got) != 100 {

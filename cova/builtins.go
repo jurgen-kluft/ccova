@@ -29,18 +29,18 @@ const (
 	BuiltInSmoothStep                        // math::smoothStep(edge0, edge1, x) or (start, end, t, shift)
 	BuiltInLerp                              // math::lerp(a, b, t) or (start, end, t, shift)
 	BuiltInSlerp                             // math::slerp(a, b, t)
-	BuiltInFrameTime                         // time::frameTime() -> float32
-	BuiltInTimerStart                        // time::timerStart(int32 id, u32 timeout_ms)
-	BuiltInTimerStop                         // time::timerStop(int32 id)
-	BuiltInTimerReset                        // time::timerReset(int32 id)
-	BuiltInTimerElapsed                      // time::timerElapsed(int32 id) -> float32
+	BuiltInTickTime                          // time::tickTime() -> float32
+	BuiltInTimerStart                        // time::timerStart(int8 id, u32 timeout_ms)
+	BuiltInTimerStop                         // time::timerStop(int8 id)
+	BuiltInTimerReset                        // time::timerReset(int8 id)
+	BuiltInTimerDone                         // time::timerDone(int8 id) -> bool
 )
 
 func builtInNumArgs(operation BuiltInOperation) int {
 	switch operation {
 	case BuiltInTimerStart:
 		return 2
-	case BuiltInTimerStop, BuiltInTimerReset, BuiltInTimerElapsed:
+	case BuiltInTimerStop, BuiltInTimerReset, BuiltInTimerDone:
 		return 1
 	case BuiltInAbs, BuiltInSin, BuiltInCos, BuiltInTan, BuiltInAsin, BuiltInAcos, BuiltInAtan, BuiltInSqrt:
 		return 1
@@ -100,12 +100,12 @@ func lookupBuiltInOperation(name string) (BuiltInOperation, bool) {
 		"math::smoothStep": BuiltInSmoothStep,
 		"math::lerp":       BuiltInLerp,
 		"math::slerp":      BuiltInSlerp,
-		// timer
-		"time::frameTime":    BuiltInFrameTime,
-		"time::timerStart":   BuiltInTimerStart,
-		"time::timerStop":    BuiltInTimerStop,
-		"time::timerReset":   BuiltInTimerReset,
-		"time::timerElapsed": BuiltInTimerElapsed,
+		// time
+		"time::tickTime":   BuiltInTickTime,   // f32  time::tickTime()
+		"time::timerStart": BuiltInTimerStart, // void time::timerStart(u8 id, u32 duration_ms)
+		"time::timerStop":  BuiltInTimerStop,  // void time::timerStop(u8 id)
+		"time::timerReset": BuiltInTimerReset, // void time::timerReset(u8 id)
+		"time::timerDone":  BuiltInTimerDone,  // bool time::timerDone(u8 id)
 	}
 	operation, ok := operations[name]
 	return operation, ok
@@ -122,6 +122,16 @@ func (fc *functionCompiler) resolveBuiltInSignature(call *AstCallExpr, operation
 	}
 	if operation == BuiltInRandom {
 		return builtInSignature{resultType: Int32Type}
+	}
+	switch operation {
+	case BuiltInTickTime:
+		return builtInSignature{resultType: Float32Type}
+	case BuiltInTimerStart:
+		return builtInSignature{resultType: VoidType, argTypes: []*Type{Uint8Type, Uint32Type}}
+	case BuiltInTimerStop, BuiltInTimerReset:
+		return builtInSignature{resultType: VoidType, argTypes: []*Type{Uint8Type}}
+	case BuiltInTimerDone:
+		return builtInSignature{resultType: BoolType, argTypes: []*Type{Uint8Type}}
 	}
 	for _, arg := range call.Args {
 		kind := valueKindFromType(fc.exprType(arg))

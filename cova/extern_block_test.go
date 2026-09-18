@@ -22,7 +22,7 @@ void script_main() {
 	linked := mustLinkProgram(t, script, len(externMemory), 0)
 	vm := NewVM(testFrameCapacityBytes)
 	vm.BindExternBlock(externMemory)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %s", status)
 	}
 	if got := int(int32(binary.LittleEndian.Uint32(externMemory[4:]))); got != 30 {
@@ -62,7 +62,7 @@ void script_main() {
 	linked := mustLinkProgram(t, script, len(externMemory), 0)
 	vm := NewVM(testFrameCapacityBytes)
 	vm.BindExternBlock(externMemory)
-	if status := vm.Run(linked); status != VMStatusOK {
+	if status := vm.Run(linked, 0); status != VMStatusOK {
 		t.Fatalf("Run failed: %s", status)
 	}
 	if got := externMemory[1]; got != 65 {
