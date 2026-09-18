@@ -2,7 +2,7 @@
 #include "ccova/builtins.h"
 #include "ccova/code_memory.h"
 #include "ccova/float_bits.h"
-#include "ccova/image.h"
+#include "ccova/program_image.h"
 
 namespace ncore
 {
@@ -93,7 +93,7 @@ namespace ncore
         vm->m_pc        = function.m_body_address;
     }
 
-    void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack)
+    void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments)
     {
         ASSERT(call_frames.m_frames != nullptr);
         ASSERT(call_frames.m_count == 0);
@@ -101,16 +101,17 @@ namespace ncore
         ASSERT(timers.m_end_time_ms != nullptr);
         ASSERT(timers.m_duration_ms != nullptr);
         ASSERT(timers.m_capacity != 0 && timers.m_capacity <= VMMaxTimerCapacity);
-        ASSERT(s_validate_segment_storage(frame));
-        ASSERT(s_validate_segment_storage(bss));
-        ASSERT(s_validate_segment_storage(external));
-        ASSERT(s_validate_segment_storage(data));
-        ASSERT(s_validate_segment_storage(stack));
-        ASSERT(frame.m_size == frame.m_capacity);
-        ASSERT(stack.m_size == 0);
+        ASSERT(s_validate_segment_storage(segments.m_frame));
+        ASSERT(s_validate_segment_storage(segments.m_bss));
+        ASSERT(s_validate_segment_storage(segments.m_external));
+        ASSERT(s_validate_segment_storage(segments.m_data));
+        ASSERT(s_validate_segment_storage(segments.m_stack));
+        ASSERT(segments.m_frame.m_size == segments.m_frame.m_capacity);
+        ASSERT(segments.m_stack.m_size == 0);
 
         const segment_memory_t constant = {nullptr, 0, 0};
-        initialize_program_memory(&vm->m_memory, frame, bss, external, constant, data, stack);
+        initialize_program_memory(&vm->m_memory, segments.m_frame, segments.m_bss, segments.m_external, constant, segments.m_data, segments.m_stack);
+
         vm->m_pc                = 0;
         vm->m_program           = nullptr;
         vm->m_host_context      = nullptr;
@@ -126,6 +127,7 @@ namespace ncore
             timers.m_end_time_ms[index] = 0;
             timers.m_duration_ms[index] = 0;
         }
+
         initialize_builtins(vm);
     }
 
@@ -163,7 +165,7 @@ namespace ncore
         vm->m_pc                  = 0;
         vm->m_call_frames.m_count = 0;
         vm->m_frame_top           = 0;
-        const u32 entry_point = vm->m_program->m_entry_point;
+        const u32 entry_point     = vm->m_program->m_entry_point;
         ASSERT(entry_point < vm->m_program->m_functions.m_size);
         ASSERT(vm->m_program->m_functions[entry_point].m_param_count == 0);
         s_enter_script_function(vm, entry_point, 0, false);
@@ -199,7 +201,8 @@ namespace ncore
         return truncate_bits64(&vm->m_memory.m_segments[SegmentStack], kind);
     }
 
-    template <typename T> static void push_number(vm_t* vm, evaluekind_t kind, T value)
+    template <typename T>
+    static void push_number(vm_t* vm, evaluekind_t kind, T value)
     {
         switch (kind)
         {
@@ -242,7 +245,8 @@ namespace ncore
         }
     }
 
-    template <typename T> static bool compare_values(T left, T right, ecompareop_t operation)
+    template <typename T>
+    static bool compare_values(T left, T right, ecompareop_t operation)
     {
         switch (operation)
         {
@@ -256,14 +260,16 @@ namespace ncore
         }
     }
 
-    template <typename T> static bool pop_and_compare32(vm_t* vm, evaluekind_t kind, ecompareop_t operation)
+    template <typename T>
+    static bool pop_and_compare32(vm_t* vm, evaluekind_t kind, ecompareop_t operation)
     {
         const T right = (T)pop_bits32(vm, kind);
         const T left  = (T)pop_bits32(vm, kind);
         return compare_values(left, right, operation);
     }
 
-    template <typename T> static bool pop_and_compare64(vm_t* vm, evaluekind_t kind, ecompareop_t operation)
+    template <typename T>
+    static bool pop_and_compare64(vm_t* vm, evaluekind_t kind, ecompareop_t operation)
     {
         const T right = (T)pop_bits64(vm, kind);
         const T left  = (T)pop_bits64(vm, kind);
@@ -275,12 +281,12 @@ namespace ncore
         switch (kind)
         {
             case KindBool:
-            {
-                ASSERT(operation == CompareEqual || operation == CompareNotEqual);
-                const bool right = pop_bits32(vm, KindBool) != 0;
-                const bool left  = pop_bits32(vm, KindBool) != 0;
-                return compare_values(left, right, operation);
-            }
+                {
+                    ASSERT(operation == CompareEqual || operation == CompareNotEqual);
+                    const bool right = pop_bits32(vm, KindBool) != 0;
+                    const bool left  = pop_bits32(vm, KindBool) != 0;
+                    return compare_values(left, right, operation);
+                }
             case KindByte:
             case KindUint8: return pop_and_compare32<u8>(vm, kind, operation);
             case KindInt8: return pop_and_compare32<s8>(vm, kind, operation);
@@ -292,22 +298,23 @@ namespace ncore
             case KindAddress: return pop_and_compare32<u32>(vm, kind, operation);
             case KindUint64: return pop_and_compare64<u64>(vm, kind, operation);
             case KindFloat32:
-            {
-                const f32 right = bits_to_f32(pop_bits32(vm, kind));
-                const f32 left  = bits_to_f32(pop_bits32(vm, kind));
-                return compare_values(left, right, operation);
-            }
+                {
+                    const f32 right = bits_to_f32(pop_bits32(vm, kind));
+                    const f32 left  = bits_to_f32(pop_bits32(vm, kind));
+                    return compare_values(left, right, operation);
+                }
             case KindFloat64:
-            {
-                const f64 right = bits_to_f64(pop_bits64(vm, kind));
-                const f64 left  = bits_to_f64(pop_bits64(vm, kind));
-                return compare_values(left, right, operation);
-            }
+                {
+                    const f64 right = bits_to_f64(pop_bits64(vm, kind));
+                    const f64 left  = bits_to_f64(pop_bits64(vm, kind));
+                    return compare_values(left, right, operation);
+                }
             default: ASSERT(false); return false;
         }
     }
 
-    template <typename T, typename U> static U integer_arithmetic(T left, T right, earithmeticop_t operation, bool is_signed)
+    template <typename T, typename U>
+    static U integer_arithmetic(T left, T right, earithmeticop_t operation, bool is_signed)
     {
         const U unsigned_left  = (U)left;
         const U unsigned_right = (U)right;
@@ -330,22 +337,23 @@ namespace ncore
             case ArithmeticBitwiseOr: return (U)(unsigned_left | unsigned_right);
             case ArithmeticBitwiseXor: return (U)(unsigned_left ^ unsigned_right);
             case ArithmeticShiftLeft:
-            {
-                const u32 shift = (u32)(unsigned_right & (sizeof(T) * 8 - 1));
-                return (U)(unsigned_left << shift);
-            }
+                {
+                    const u32 shift = (u32)(unsigned_right & (sizeof(T) * 8 - 1));
+                    return (U)(unsigned_left << shift);
+                }
             case ArithmeticShiftRight:
-            {
-                const u32 shift = (u32)(unsigned_right & (sizeof(T) * 8 - 1));
-                if (!is_signed || left >= 0 || shift == 0)
-                    return (U)(unsigned_left >> shift);
-                return (U)((unsigned_left >> shift) | ((U) ~(U)0 << (sizeof(T) * 8 - shift)));
-            }
+                {
+                    const u32 shift = (u32)(unsigned_right & (sizeof(T) * 8 - 1));
+                    if (!is_signed || left >= 0 || shift == 0)
+                        return (U)(unsigned_left >> shift);
+                    return (U)((unsigned_left >> shift) | ((U) ~(U)0 << (sizeof(T) * 8 - shift)));
+                }
             default: ASSERT(false); return 0;
         }
     }
 
-    template <typename T> static T float_arithmetic(T left, T right, earithmeticop_t operation)
+    template <typename T>
+    static T float_arithmetic(T left, T right, earithmeticop_t operation)
     {
         switch (operation)
         {
@@ -479,88 +487,88 @@ namespace ncore
             switch (opcode)
             {
                 case OpPush:
-                {
-                    const evaluekind_t kind = instruction_kind(instruction);
-                    ASSERT(kind != KindNone && kind != KindVoid && kind != KindAddress);
-                    if (value_kind_is_32_bit(kind))
-                        push_bits32(vm, kind, read_immediate32(&text, &vm->m_pc, kind));
-                    else
-                        push_bits64(vm, kind, read_immediate64(&text, &vm->m_pc, kind));
-                    break;
-                }
+                    {
+                        const evaluekind_t kind = instruction_kind(instruction);
+                        ASSERT(kind != KindNone && kind != KindVoid && kind != KindAddress);
+                        if (value_kind_is_32_bit(kind))
+                            push_bits32(vm, kind, read_immediate32(&text, &vm->m_pc, kind));
+                        else
+                            push_bits64(vm, kind, read_immediate64(&text, &vm->m_pc, kind));
+                        break;
+                    }
                 case OpArithmetic: execute_arithmetic(vm, instruction_kind(instruction), instruction_arithmetic_op(instruction)); break;
                 case OpBuiltIn: execute_builtin(vm, instruction_builtin_function(instruction)); break;
                 case OpConvert: execute_conversion(vm, instruction_convert_from_kind(instruction), instruction_kind(instruction)); break;
                 case OpAddr:
-                {
-                    const ememorysegment_t segment = instruction_address_segment(instruction);
-                    ASSERT(segment >= SegmentFrame && segment <= SegmentStack);
-                    u32 offset = read_u32(&text, &vm->m_pc);
-                    if (segment == SegmentFrame)
                     {
-                        const u32 local_base = s_current_frame(vm)->m_local_base;
-                        ASSERT(offset <= AddressIndexMask - local_base);
-                        offset += local_base;
+                        const ememorysegment_t segment = instruction_address_segment(instruction);
+                        ASSERT(segment >= SegmentFrame && segment <= SegmentStack);
+                        u32 offset = read_u32(&text, &vm->m_pc);
+                        if (segment == SegmentFrame)
+                        {
+                            const u32 local_base = s_current_frame(vm)->m_local_base;
+                            ASSERT(offset <= AddressIndexMask - local_base);
+                            offset += local_base;
+                        }
+                        ASSERT(offset <= AddressIndexMask);
+                        push_bits32(vm, KindAddress, make_address(segment, offset));
+                        break;
                     }
-                    ASSERT(offset <= AddressIndexMask);
-                    push_bits32(vm, KindAddress, make_address(segment, offset));
-                    break;
-                }
                 case OpOffset:
-                {
-                    const s32       offset = (s32)pop_bits32(vm, KindInt32);
-                    const address_t base   = (address_t)pop_bits32(vm, KindAddress);
-                    const s64       index  = (s64)address_index(base) + offset;
-                    ASSERT(index >= 0 && index <= AddressIndexMask);
-                    push_bits32(vm, KindAddress, make_address(address_segment(base), (u32)index));
-                    break;
-                }
+                    {
+                        const s32       offset = (s32)pop_bits32(vm, KindInt32);
+                        const address_t base   = (address_t)pop_bits32(vm, KindAddress);
+                        const s64       index  = (s64)address_index(base) + offset;
+                        ASSERT(index >= 0 && index <= AddressIndexMask);
+                        push_bits32(vm, KindAddress, make_address(address_segment(base), (u32)index));
+                        break;
+                    }
                 case OpDereference:
-                {
-                    const evaluekind_t kind = instruction_kind(instruction);
-                    ASSERT(value_kind_size(kind) != 0);
-                    push_from_memory(vm, (address_t)pop_bits32(vm, KindAddress), kind);
-                    break;
-                }
+                    {
+                        const evaluekind_t kind = instruction_kind(instruction);
+                        ASSERT(value_kind_size(kind) != 0);
+                        push_from_memory(vm, (address_t)pop_bits32(vm, KindAddress), kind);
+                        break;
+                    }
                 case OpAssign:
-                {
-                    const evaluekind_t kind = instruction_kind(instruction);
-                    ASSERT(value_kind_size(kind) != 0);
-                    pop_to_memory(vm, (address_t)pop_bits32(vm, KindAddress), kind);
-                    break;
-                }
+                    {
+                        const evaluekind_t kind = instruction_kind(instruction);
+                        ASSERT(value_kind_size(kind) != 0);
+                        pop_to_memory(vm, (address_t)pop_bits32(vm, KindAddress), kind);
+                        break;
+                    }
                 case OpCompare: push_bits32(vm, KindBool, execute_comparison(vm, instruction_kind(instruction), instruction_compare_op(instruction)) ? 1 : 0); break;
                 case OpJumpIfFalse:
-                {
-                    const u32 target = read_u32(&text, &vm->m_pc);
-                    if (pop_bits32(vm, KindBool) == 0)
                     {
+                        const u32 target = read_u32(&text, &vm->m_pc);
+                        if (pop_bits32(vm, KindBool) == 0)
+                        {
+                            ASSERT(target < text.m_size);
+                            vm->m_pc = target;
+                        }
+                        break;
+                    }
+                case OpJump:
+                    {
+                        const u32 target = read_u32(&text, &vm->m_pc);
                         ASSERT(target < text.m_size);
                         vm->m_pc = target;
+                        break;
                     }
-                    break;
-                }
-                case OpJump:
-                {
-                    const u32 target = read_u32(&text, &vm->m_pc);
-                    ASSERT(target < text.m_size);
-                    vm->m_pc = target;
-                    break;
-                }
                 case OpCall:
-                {
-                    const u32 target    = read_u32(&text, &vm->m_pc);
-                    const u32 return_pc = vm->m_pc;
-                    s_enter_script_function(vm, target, return_pc, true);
-                    break;
-                }
+                    {
+                        const u32 target    = read_u32(&text, &vm->m_pc);
+                        const u32 return_pc = vm->m_pc;
+                        s_enter_script_function(vm, target, return_pc, true);
+                        break;
+                    }
                 case OpCallExtern:
-                {
-                    const u32 import_id = read_u32(&text, &vm->m_pc);
-                    ASSERT(vm->m_extern_dispatcher != nullptr);
-                    vm->m_extern_dispatcher(vm->m_host_context, vm, import_id);
-                    break;
-                }
+                    {
+                        const u32 import_id = read_u32(&text, &vm->m_pc);
+                        ASSERT(vm->m_extern_dispatcher != nullptr);
+                        vm->m_extern_dispatcher(vm->m_host_context, vm, import_id);
+                        break;
+                    }
                 case OpRet:
                     if (return_from_function(vm))
                         return;
@@ -569,4 +577,4 @@ namespace ncore
             }
         }
     }
-} // namespace ncore
+}  // namespace ncore

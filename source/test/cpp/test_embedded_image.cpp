@@ -28,8 +28,11 @@ UNITTEST_SUITE_BEGIN(cova_embedded_image)
             call_frame_t call_frames[8] = {};
             u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
             u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
+
+            vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {external, 8, 8}, {data, 0, 16}, {stack, 0, 64}};
+
             vm_t         vm;
-            initialize_vm(&vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame, 64, 64}, {bss, 0, 16}, {external, 8, 8}, {data, 0, 16}, {stack, 0, 64});
+            initialize_vm(&vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             run_vm_image(&vm, go_program_image, (u32)go_program_image_len, 0);
             CHECK_EQUAL((s32)6, (s32)pop_bits32(&vm, KindInt32));

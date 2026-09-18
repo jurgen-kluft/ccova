@@ -2,7 +2,7 @@
 
 #include "ccova/float_bits.h"
 #include "ccova/builtins.h"
-#include "ccova/image.h"
+#include "ccova/program_image.h"
 #include "ccova/vm.h"
 
 #include "cunittest/cunittest.h"
@@ -22,7 +22,8 @@ namespace
 
     static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, u64* timer_end_time_ms, u32* timer_duration_ms, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
     {
-        initialize_vm(vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 64});
+        vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 64}};
+        initialize_vm(vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
     }
 
     static void initialize_program(linked_program_t* program, const byte* text, u32 text_size, const script_function_t* functions, u32 function_count, const evaluekind_t* param_kinds = nullptr, const u32* param_offsets = nullptr, u32 param_count = 0)

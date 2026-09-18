@@ -1,5 +1,5 @@
 #include "ccore/c_debug.h"
-#include "ccova/image.h"
+#include "ccova/program_image.h"
 
 namespace ncore
 {

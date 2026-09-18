@@ -1,6 +1,6 @@
 #include "ccore/c_target.h"
 
-#include "ccova/image.h"
+#include "ccova/program_image.h"
 #include "ccova/vm.h"
 
 #include "cunittest/cunittest.h"
@@ -42,7 +42,8 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
 
-            initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16});
+            vm_segments_t segments = {{frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16}};
+            initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             CHECK_EQUAL((u32)0, vm.m_pc);
             CHECK_TRUE(vm.m_program == nullptr);
@@ -83,7 +84,8 @@ UNITTEST_SUITE_BEGIN(cova_vm)
                 data_storage[index] = 0xffU;
             }
 
-            initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16});
+            vm_segments_t segments = {{frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16}};
+            initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             const byte              text[]       = {OpRet, 0};
             const byte              const_data[] = {1, 2, 3};
@@ -159,7 +161,8 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
             const segment_memory_t empty = {nullptr, 0, 0};
-            initialize_vm(&vm, {call_frames, 0, 1}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame_storage, 8, 8}, empty, empty, empty, {stack_storage, 0, 8});
+            vm_segments_t segments = {{frame_storage, 8, 8}, empty, empty, empty, {stack_storage, 0, 8}};
+            initialize_vm(&vm, {call_frames, 0, 1}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             extern_call_t call = {nullptr, 0};
             register_extern_dispatcher(&vm, &call, test_extern_dispatcher);

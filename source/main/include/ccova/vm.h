@@ -11,10 +11,10 @@ namespace ncore
     typedef void (*extern_dispatcher_fn)(void* host_context, vm_t* vm, u32 import_id);
 
     struct call_frame_t
-    {                                   // sizeof(call_frame_t) = 8 bytes
-        u32          m_local_base;      // Base index for local variables in the call frame
-        u32          m_return_pc : 24;  // Return program counter for the call frame (byte offset)
-        evaluekind_t m_return_kind : 8; // Return value kind for the call frame
+    {                                    // sizeof(call_frame_t) = 8 bytes
+        u32          m_local_base;       // Base index for local variables in the call frame
+        u32          m_return_pc : 24;   // Return program counter for the call frame (byte offset)
+        evaluekind_t m_return_kind : 8;  // Return value kind for the call frame
     };
 
     struct vm_call_frames_t
@@ -41,6 +41,15 @@ namespace ncore
         u64 m_s1;
     };
 
+    struct vm_segments_t
+    {
+        segment_memory_t m_frame;
+        segment_memory_t m_bss;
+        segment_memory_t m_external;
+        segment_memory_t m_data;
+        segment_memory_t m_stack;
+    };
+
     struct vm_t
     {
         program_memory_t        m_memory;
@@ -57,13 +66,16 @@ namespace ncore
         bool                    m_has_current_time;
     };
 
+    void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments);
+
+    void register_extern_dispatcher(vm_t* vm, void* host_context, extern_dispatcher_fn dispatcher);
+
     // A VM binds to one program. Reloading that program resets its persistent script state.
-    void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& data, const segment_memory_t& stack);
     void load_program(vm_t* vm, const linked_program_t* program);
     void load_program_image(vm_t* vm, const byte* block, u32 block_size);
+
     // Restarts transient execution state without resetting globals, random state, timers, or time.
     void reset_vm(vm_t* vm);
-    void register_extern_dispatcher(vm_t* vm, void* host_context, extern_dispatcher_fn dispatcher);
 
     // Each run executes one logic tick of the VM's bound program.
     void run_vm(vm_t* vm, const linked_program_t* program, u64 now_ms);
@@ -82,7 +94,8 @@ namespace ncore
     inline u64 pop_u64(vm_t* vm) { return (u64)pop_bits64(vm, KindUint64); }
     inline i64 pop_i64(vm_t* vm) { return (i64)pop_bits64(vm, KindInt64); }
 
-    template <typename T> inline T* pop_data_pointer(vm_t* vm)
+    template <typename T>
+    inline T* pop_data_pointer(vm_t* vm)
     {
         const address_t        address = pop_bits32(vm, KindAddress);
         const ememorysegment_t segment = address_segment(address);
@@ -90,6 +103,6 @@ namespace ncore
         return reinterpret_cast<T*>(vm->m_memory.m_segments[segment].m_data + index);
     }
 
-} // namespace ncore
+}  // namespace ncore
 
 #endif

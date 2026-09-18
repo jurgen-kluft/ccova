@@ -56,6 +56,6 @@ namespace ncore
     inline void write_f64(program_memory_t* memory, address_t address, f64 value) { write_u64(memory, address, f64_to_bits(value)); }
     inline void write_address(program_memory_t* memory, address_t destination, address_t value) { write_u32(memory, destination, value); }
 
-} // namespace ncore
+}  // namespace ncore
 
 #endif

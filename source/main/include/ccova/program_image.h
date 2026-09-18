@@ -1,5 +1,5 @@
-#ifndef __CCOVA_IMAGE_H__
-#define __CCOVA_IMAGE_H__
+#ifndef __CCOVA_PROGRAM_IMAGE_H__
+#define __CCOVA_PROGRAM_IMAGE_H__
 
 #include "ccova/linked_program.h"
 

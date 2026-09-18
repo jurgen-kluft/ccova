@@ -12,9 +12,10 @@ namespace
 {
     static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, u64* timer_end_time_ms, u32* timer_duration_ms, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
     {
-        initialize_vm(vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, {frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 128});
+        vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 128}};
+        initialize_vm(vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
     }
-}
+}  // namespace
 
 UNITTEST_SUITE_BEGIN(cova_builtins)
 {
@@ -25,11 +26,11 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
 
         UNITTEST_TEST(range_and_interpolation)
         {
-            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[128] = {};
-            call_frame_t call_frames[4] = {};
-            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
-            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
-            vm_t vm;
+            byte         frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[128] = {};
+            call_frame_t call_frames[4]                            = {};
+            u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t         vm;
             initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
 
             push_bits32(&vm, KindInt32, 5);
@@ -113,10 +114,10 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             CHECK_EQUAL((f32)3.0f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
 
             const ebuiltinoperation_t unary_operations[] = {BuiltInSin, BuiltInCos, BuiltInTan, BuiltInAsin, BuiltInAcos, BuiltInAtan};
-            const f32                  unary_inputs32[]   = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
-            const f32                  unary_results32[]  = {0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-            const f64                  unary_inputs64[]   = {0.0, 0.0, 0.0, 0.0, 1.0, 0.0};
-            const f64                  unary_results64[]  = {0.0, 1.0, 0.0, 0.0, 0.0, 0.0};
+            const f32                 unary_inputs32[]   = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+            const f32                 unary_results32[]  = {0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+            const f64                 unary_inputs64[]   = {0.0, 0.0, 0.0, 0.0, 1.0, 0.0};
+            const f64                 unary_results64[]  = {0.0, 1.0, 0.0, 0.0, 0.0, 0.0};
             for (u32 i = 0; i < sizeof(unary_operations) / sizeof(unary_operations[0]); ++i)
             {
                 push_bits32(&vm, KindFloat32, f32_to_bits(unary_inputs32[i]));
@@ -213,11 +214,11 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
 
         UNITTEST_TEST(unsigned_abs_and_seeded_random)
         {
-            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[128] = {};
-            call_frame_t call_frames[4] = {};
-            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
-            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
-            vm_t vm;
+            byte         frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[128] = {};
+            call_frame_t call_frames[4]                            = {};
+            u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t         vm;
             initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
 
             push_bits32(&vm, KindUint8, 0x80);
@@ -240,11 +241,11 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
 
         UNITTEST_TEST(time_builtins)
         {
-            byte frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[128] = {};
-            call_frame_t call_frames[4] = {};
-            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
-            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
-            vm_t vm;
+            byte         frame[64] = {}, bss[16] = {}, external[16] = {}, data[16] = {}, stack[128] = {};
+            call_frame_t call_frames[4]                            = {};
+            u64          timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t         vm;
             initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
 
             vm.m_tick_time = 0.25f;
@@ -311,7 +312,7 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             push_bits32(&vm, KindUint8, 2);
             push_bits32(&vm, KindUint32, 20);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerStart, KindVoid));
-            CHECK_EQUAL((u64)~(u64)0, timer_end_time_ms[2]);
+            CHECK_EQUAL((u64) ~(u64)0, timer_end_time_ms[2]);
         }
     }
 }

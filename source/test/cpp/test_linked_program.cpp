@@ -1,6 +1,6 @@
 #include "ccore/c_target.h"
 
-#include "ccova/image.h"
+#include "ccova/program_image.h"
 
 #include "cunittest/cunittest.h"
 
