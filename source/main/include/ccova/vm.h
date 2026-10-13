@@ -24,9 +24,6 @@ namespace ncore
         u32           m_capacity;
     };
 
-    static const u32 VMDefaultTimerCapacity = 8;
-    static const u32 VMMaxTimerCapacity     = 256;
-
     struct vm_timers_t
     {
         u64* m_end_time_ms;
@@ -34,12 +31,29 @@ namespace ncore
         u32  m_capacity;
     };
 
+    void initialize_timers(vm_timers_t* timers);
+    void reset_timers(vm_timers_t* timers);
+
+    struct vm_time_t
+    {
+        u64  m_current_time_ms;
+        u32  m_has_current_time;
+        f32  m_tick_time;
+    };
+
+    void initialize_time(vm_time_t* time);
+    void reset_time(vm_time_t* time);
+    void tick_time(vm_time_t* time, u64 now_ms);
+
     struct vm_random_t
     {
         u64 m_seed;
         u64 m_s0;
         u64 m_s1;
     };
+
+    void initialize_random(vm_random_t* random);
+    void reset_random(vm_random_t* random);
 
     struct vm_segments_t
     {
@@ -61,9 +75,7 @@ namespace ncore
         vm_call_frames_t        m_call_frames;
         vm_random_t             m_random;
         vm_timers_t             m_timers;
-        u64                     m_current_time_ms;
-        f32                     m_tick_time;
-        bool                    m_has_current_time;
+        vm_time_t               m_time;
     };
 
     void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments);
@@ -78,9 +90,7 @@ namespace ncore
     void reset_vm(vm_t* vm);
 
     // Each run executes one logic tick of the VM's bound program.
-    void run_vm(vm_t* vm, const linked_program_t* program, u64 now_ms);
-    void run_vm_image(vm_t* vm, const byte* block, u32 block_size, u64 now_ms);
-    void run_loaded_vm(vm_t* vm, u64 now_ms);
+    void run_vm(vm_t* vm, u64 now_ms);
 
     void push_bits32(vm_t* vm, evaluekind_t kind, u32 bits);
     u32  pop_bits32(vm_t* vm, evaluekind_t kind);

@@ -93,6 +93,32 @@ namespace ncore
         vm->m_pc        = function.m_body_address;
     }
 
+    void initialize_time(vm_time_t* time)
+    {
+        time->m_current_time_ms  = 0;
+        time->m_has_current_time = 0;
+        time->m_tick_time        = 0.0f;
+    }
+
+    void reset_time(vm_time_t* time)
+    {
+        time->m_current_time_ms = 0;
+        time->m_tick_time       = 0.0f;
+    }
+
+    void tick_time(vm_time_t* time, u64 now_ms)
+    {
+        u64 current_time = time->m_current_time_ms;
+        if (time->m_has_current_time == 0)
+        {
+            current_time = now_ms;
+            time->m_has_current_time = 1;
+        }
+
+        time->m_tick_time       = (f32)(now_ms - current_time) / 1000.0f;
+        time->m_current_time_ms = now_ms;
+    }
+
     void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments)
     {
         ASSERT(call_frames.m_frames != nullptr);
@@ -100,7 +126,7 @@ namespace ncore
         ASSERT(call_frames.m_capacity != 0);
         ASSERT(timers.m_end_time_ms != nullptr);
         ASSERT(timers.m_duration_ms != nullptr);
-        ASSERT(timers.m_capacity != 0 && timers.m_capacity <= VMMaxTimerCapacity);
+        ASSERT(timers.m_capacity != 0 && timers.m_capacity <= 256);
         ASSERT(s_validate_segment_storage(segments.m_frame));
         ASSERT(s_validate_segment_storage(segments.m_bss));
         ASSERT(s_validate_segment_storage(segments.m_external));
@@ -118,16 +144,9 @@ namespace ncore
         vm->m_extern_dispatcher = nullptr;
         vm->m_call_frames       = call_frames;
         vm->m_frame_top         = 0;
-        vm->m_timers            = timers;
-        vm->m_current_time_ms   = 0;
-        vm->m_tick_time         = 0.0f;
-        vm->m_has_current_time  = false;
-        for (u32 index = 0; index < timers.m_capacity; ++index)
-        {
-            timers.m_end_time_ms[index] = 0;
-            timers.m_duration_ms[index] = 0;
-        }
+        initialize_time(&vm->m_time);
 
+        vm->m_timers = timers;
         initialize_builtins(vm);
     }
 
@@ -453,32 +472,11 @@ namespace ncore
         return false;
     }
 
-    void run_vm(vm_t* vm, const linked_program_t* program, u64 now_ms)
-    {
-        if (vm->m_program == nullptr)
-            load_program(vm, program);
-        else
-            ASSERT(vm->m_program == program);
-        run_loaded_vm(vm, now_ms);
-    }
-
-    void run_vm_image(vm_t* vm, const byte* block, u32 block_size, u64 now_ms)
-    {
-        const linked_program_t* program = open_program_image(block, block_size);
-        if (vm->m_program == nullptr)
-            load_program(vm, program);
-        else
-            ASSERT(vm->m_program == program);
-        run_loaded_vm(vm, now_ms);
-    }
-
-    void run_loaded_vm(vm_t* vm, u64 now_ms)
+    void run_vm(vm_t* vm, u64 now_ms)
     {
         reset_vm(vm);
-        ASSERT(!vm->m_has_current_time || now_ms >= vm->m_current_time_ms);
-        vm->m_tick_time          = vm->m_has_current_time ? (f32)(now_ms - vm->m_current_time_ms) / 1000.0f : 0.0f;
-        vm->m_current_time_ms    = now_ms;
-        vm->m_has_current_time   = true;
+        tick_time(&vm->m_time, now_ms);
+
         const code_memory_t text = {vm->m_program->m_text.data(), vm->m_program->m_text.m_size};
         while (vm->m_pc < text.m_size)
         {

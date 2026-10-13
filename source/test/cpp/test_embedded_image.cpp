@@ -13,6 +13,8 @@ UNITTEST_SUITE_BEGIN(cova_embedded_image)
 {
     UNITTEST_FIXTURE(main)
     {
+        static const i32 VMDefaultTimerCapacity = 8;
+
         UNITTEST_FIXTURE_SETUP() {}
         UNITTEST_FIXTURE_TEARDOWN() {}
 
@@ -34,14 +36,16 @@ UNITTEST_SUITE_BEGIN(cova_embedded_image)
             vm_t         vm;
             initialize_vm(&vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
-            run_vm_image(&vm, go_program_image, (u32)go_program_image_len, 0);
+            load_program_image(&vm, go_program_image, (u32)go_program_image_len);
+            run_vm(&vm, 0);
             CHECK_EQUAL((s32)6, (s32)pop_bits32(&vm, KindInt32));
 
-            run_vm_image(&vm, go_program_image, (u32)go_program_image_len, 0);
+            load_program_image(&vm, go_program_image, (u32)go_program_image_len);
+            run_vm(&vm, 0);
             CHECK_EQUAL((s32)9, (s32)pop_bits32(&vm, KindInt32));
 
             load_program_image(&vm, go_program_image, (u32)go_program_image_len);
-            run_loaded_vm(&vm, 0);
+            run_vm(&vm, 0);
             CHECK_EQUAL((s32)6, (s32)pop_bits32(&vm, KindInt32));
         }
     }

@@ -49,6 +49,8 @@ UNITTEST_SUITE_BEGIN(cova_image)
         UNITTEST_FIXTURE_SETUP() {}
         UNITTEST_FIXTURE_TEARDOWN() {}
 
+        static const i32 VMDefaultTimerCapacity = 8;
+
         UNITTEST_TEST(open_zero_copy_views)
         {
             u32  aligned_storage[40] = {};
@@ -120,7 +122,8 @@ UNITTEST_SUITE_BEGIN(cova_image)
 
             vm_t vm;
             initialize_vm(&vm, {call_frames, 0, 2}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
-            run_vm_image(&vm, block, data_offset + 4, 0);
+            load_program_image(&vm, block, data_offset + 4);
+            run_vm(&vm, 0);
 
             CHECK_TRUE(vm.m_program == (const linked_program_t*)block);
             CHECK_EQUAL((u32)42, pop_bits32(&vm, KindInt32));

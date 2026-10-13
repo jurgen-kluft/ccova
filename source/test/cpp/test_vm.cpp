@@ -30,6 +30,8 @@ UNITTEST_SUITE_BEGIN(cova_vm)
         UNITTEST_FIXTURE_SETUP() {}
         UNITTEST_FIXTURE_TEARDOWN() {}
 
+        static const i32 VMDefaultTimerCapacity = 8;
+
         UNITTEST_TEST(initialize)
         {
             byte         frame_storage[32] = {};
@@ -55,9 +57,9 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             CHECK_TRUE(vm.m_timers.m_end_time_ms == timer_end_time_ms);
             CHECK_TRUE(vm.m_timers.m_duration_ms == timer_duration_ms);
             CHECK_EQUAL((u32)VMDefaultTimerCapacity, vm.m_timers.m_capacity);
-            CHECK_EQUAL((u64)0, vm.m_current_time_ms);
-            CHECK_EQUAL((f32)0.0f, vm.m_tick_time);
-            CHECK_FALSE(vm.m_has_current_time);
+            CHECK_EQUAL((u64)0, vm.m_time.m_current_time_ms);
+            CHECK_EQUAL((f32)0.0f, vm.m_time.m_tick_time);
+            CHECK_FALSE(vm.m_time.m_has_current_time);
             for (u32 index = 0; index < VMDefaultTimerCapacity; ++index)
             {
                 CHECK_EQUAL((u64)0, timer_end_time_ms[index]);
@@ -139,17 +141,17 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             CHECK_EQUAL((u32)100, timer_duration_ms[0]);
             CHECK_EQUAL((u64)1100, timer_end_time_ms[0]);
 
-            vm.m_current_time_ms  = 1200;
-            vm.m_tick_time        = 0.1f;
-            vm.m_has_current_time = true;
+            vm.m_time.m_current_time_ms  = 1200;
+            vm.m_time.m_tick_time        = 0.1f;
+            vm.m_time.m_has_current_time = true;
             load_program(&vm, &program);
             for (u32 index = 0; index < 6; ++index)
                 CHECK_EQUAL((u8)0, bss_storage[index]);
             for (u32 index = 0; index < 4; ++index)
                 CHECK_EQUAL(data_data[index], data_storage[index]);
-            CHECK_EQUAL((u64)1200, vm.m_current_time_ms);
-            CHECK_EQUAL((f32)0.1f, vm.m_tick_time);
-            CHECK_TRUE(vm.m_has_current_time);
+            CHECK_EQUAL((u64)1200, vm.m_time.m_current_time_ms);
+            CHECK_EQUAL((f32)0.1f, vm.m_time.m_tick_time);
+            CHECK_TRUE(vm.m_time.m_has_current_time);
         }
 
         UNITTEST_TEST(register_extern_dispatcher)

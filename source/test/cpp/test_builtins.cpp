@@ -10,6 +10,8 @@ using namespace ncore;
 
 namespace
 {
+    static const i32 VMDefaultTimerCapacity = 8;
+
     static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, u64* timer_end_time_ms, u32* timer_duration_ms, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
     {
         vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 128}};
@@ -248,23 +250,23 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             vm_t         vm;
             initialize_test_vm(&vm, call_frames, timer_end_time_ms, timer_duration_ms, frame, bss, external, data, stack);
 
-            vm.m_tick_time = 0.25f;
+            vm.m_time.m_tick_time = 0.25f;
             execute_builtin(&vm, make_builtin_function(BuiltInTickTime, KindFloat32));
             CHECK_EQUAL((f32)0.25f, bits_to_f32(pop_bits32(&vm, KindFloat32)));
 
-            vm.m_current_time_ms = 1000;
+            vm.m_time.m_current_time_ms = 1000;
             push_bits32(&vm, KindUint8, 0);
             push_bits32(&vm, KindUint32, 100);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerStart, KindVoid));
             CHECK_EQUAL((u32)100, timer_duration_ms[0]);
             CHECK_EQUAL((u64)1100, timer_end_time_ms[0]);
 
-            vm.m_current_time_ms = 1100;
+            vm.m_time.m_current_time_ms = 1100;
             push_bits32(&vm, KindUint8, 0);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
 
-            vm.m_current_time_ms = 1101;
+            vm.m_time.m_current_time_ms = 1101;
             push_bits32(&vm, KindUint8, 0);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
@@ -272,7 +274,7 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
 
-            vm.m_current_time_ms = 1200;
+            vm.m_time.m_current_time_ms = 1200;
             push_bits32(&vm, KindUint8, 0);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerReset, KindVoid));
             CHECK_EQUAL((u32)100, timer_duration_ms[0]);
@@ -286,7 +288,7 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
 
-            vm.m_current_time_ms = 1250;
+            vm.m_time.m_current_time_ms = 1250;
             push_bits32(&vm, KindUint8, 0);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerReset, KindVoid));
             CHECK_EQUAL((u32)0, timer_duration_ms[0]);
@@ -300,7 +302,7 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             push_bits32(&vm, KindUint8, 1);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
-            vm.m_current_time_ms = 1201;
+            vm.m_time.m_current_time_ms = 1201;
             push_bits32(&vm, KindUint8, 1);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
@@ -308,7 +310,7 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
             CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
 
-            vm.m_current_time_ms = ~(u64)0 - 10;
+            vm.m_time.m_current_time_ms = ~(u64)0 - 10;
             push_bits32(&vm, KindUint8, 2);
             push_bits32(&vm, KindUint32, 20);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerStart, KindVoid));

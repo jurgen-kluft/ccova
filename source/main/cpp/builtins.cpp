@@ -10,31 +10,57 @@ namespace ncore
     static const u64 scDefaultRandomSeed = 0x1234567890abcdefULL;
     static const u64 scRandomStateSeed   = 6364136223846793005ULL;
 
-    static inline u64 next_random(vm_t* vm)
+    static inline u64 next_random(vm_random_t* rnd)
     {
-        u64       s1     = vm->m_random.m_s0;
-        const u64 s0     = vm->m_random.m_s1;
+        u64       s1     = rnd->m_s0;
+        const u64 s0     = rnd->m_s1;
         const u64 result = s0 + s1;
-        vm->m_random.m_s0  = s0;
+        rnd->m_s0  = s0;
         s1 ^= s1 << 23;
-        vm->m_random.m_s1 = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5);
+        rnd->m_s1 = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5);
         return result;
+    }
+
+    void reset_timers(vm_timers_t* timers)
+    {
+        for (u32 index = 0; index < timers->m_capacity; ++index)
+        {
+            timers->m_end_time_ms[index] = 0;
+            timers->m_duration_ms[index] = 0;
+        }
+    }
+
+    void initialize_timers(vm_timers_t* timers)
+    {
+        reset_timers(timers);
+    }
+
+    void reset_random(vm_random_t* rnd)
+    {
+        rnd->m_s0 = rnd->m_seed + 6364136223846793ULL;
+        rnd->m_s1 = scRandomStateSeed;
+        next_random(rnd);
+        next_random(rnd);
+    }
+
+    void initialize_random(vm_random_t* rnd)
+    {
+        rnd->m_seed = scDefaultRandomSeed;
+        reset_random(rnd);
     }
 
     void reset_builtins(vm_t* vm)
     {
         ASSERT(vm != nullptr);
-        vm->m_random.m_s0 = vm->m_random.m_seed + 6364136223846793ULL;
-        vm->m_random.m_s1 = scRandomStateSeed;
-        next_random(vm);
-        next_random(vm);
+        reset_random(&vm->m_random);
+        reset_timers(&vm->m_timers);
     }
 
     void initialize_builtins(vm_t* vm)
     {
         ASSERT(vm != nullptr);
-        vm->m_random.m_seed = scDefaultRandomSeed;
-        reset_builtins(vm);
+        initialize_random(&vm->m_random);
+        initialize_timers(&vm->m_timers);
     }
 
     void set_random_seed(vm_t* vm, u64 seed)
@@ -493,7 +519,7 @@ namespace ncore
         {
             case BuiltInTickTime:
                 ASSERT(kind == KindFloat32);
-                push_bits32(vm, KindFloat32, f32_to_bits(vm->m_tick_time));
+                push_bits32(vm, KindFloat32, f32_to_bits(vm->m_time.m_tick_time));
                 break;
             case BuiltInTimerStart:
             {
@@ -501,7 +527,7 @@ namespace ncore
                 const u32 duration_ms = pop_u32(vm);
                 const u32 index       = get_timer_index(vm, pop_u8(vm));
                 vm->m_timers.m_duration_ms[index] = duration_ms;
-                vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_current_time_ms, (u64)duration_ms);
+                vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_time.m_current_time_ms, (u64)duration_ms);
                 break;
             }
             case BuiltInTimerStop:
@@ -517,14 +543,16 @@ namespace ncore
                 ASSERT(kind == KindVoid);
                 const u32 index       = get_timer_index(vm, pop_u8(vm));
                 const u32 duration_ms = vm->m_timers.m_duration_ms[index];
-                vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_current_time_ms, (u64)duration_ms);
+                vm->m_timers.m_end_time_ms[index] = saturating_add_u64(vm->m_time.m_current_time_ms, (u64)duration_ms);
                 break;
             }
             case BuiltInTimerDone:
             {
                 ASSERT(kind == KindBool);
                 const u32 index = get_timer_index(vm, pop_u8(vm));
-                push_bits32(vm, KindBool, vm->m_timers.m_duration_ms[index] != 0 && vm->m_current_time_ms > vm->m_timers.m_end_time_ms[index] ? 1U : 0U);
+                const u32 duration_ms = vm->m_timers.m_duration_ms[index];
+                const u32 done = vm->m_time.m_current_time_ms > vm->m_timers.m_end_time_ms[index] ? 1U : 0U;
+                push_bits32(vm, KindBool, done);
                 break;
             }
             default: ASSERT(false); break;
@@ -586,7 +614,7 @@ namespace ncore
                     break;
                 case BuiltInRandom:
                     ASSERT(kind == KindInt32);
-                    push_bits32(vm, kind, (u32)next_random(vm) & 0x7fffffffU);
+                    push_bits32(vm, kind, (u32)next_random(&vm->m_random) & 0x7fffffffU);
                     break;
                 case BuiltInClamp: execute_builtin_clamp(vm, kind); break;
                 case BuiltInLerp:
