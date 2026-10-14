@@ -36,9 +36,9 @@ namespace ncore
 
     struct vm_time_t
     {
-        u64  m_current_time_ms;
-        u32  m_has_current_time;
-        f32  m_tick_time;
+        u64 m_current_time_ms;  // Current time in milliseconds
+        u32 m_ticks;            // Number of logic ticks that have elapsed (warning: will wrap around!)
+        f32 m_tick_time;        // Duration of current logic tick in milliseconds
     };
 
     void initialize_time(vm_time_t* time);
@@ -69,13 +69,13 @@ namespace ncore
         program_memory_t        m_memory;
         u32                     m_pc;
         u32                     m_frame_top;
+        vm_time_t               m_time;
         const linked_program_t* m_program;
         void*                   m_host_context;
         extern_dispatcher_fn    m_extern_dispatcher;
         vm_call_frames_t        m_call_frames;
         vm_random_t             m_random;
         vm_timers_t             m_timers;
-        vm_time_t               m_time;
     };
 
     void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments);

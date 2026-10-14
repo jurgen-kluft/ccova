@@ -38,9 +38,8 @@ namespace ncore
 
     typedef u16 builtin_function_t;
 
-    void initialize_builtins(vm_t* vm);
+    void initialize_builtins(vm_t* vm, u64 seed);
     void reset_builtins(vm_t* vm);
-    void set_random_seed(vm_t* vm, u64 seed);
     void execute_builtin(vm_t* vm, builtin_function_t function);
 
     inline ebuiltinoperation_t builtin_function_operation(builtin_function_t function) { return (ebuiltinoperation_t)((function >> 4) & 0x7fU); }

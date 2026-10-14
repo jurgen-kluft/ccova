@@ -95,28 +95,24 @@ namespace ncore
 
     void initialize_time(vm_time_t* time)
     {
-        time->m_current_time_ms  = 0;
-        time->m_has_current_time = 0;
-        time->m_tick_time        = 0.0f;
+        time->m_current_time_ms = 0;
+        time->m_ticks           = 0;
+        time->m_tick_time       = 0.0f;
     }
 
     void reset_time(vm_time_t* time)
     {
         time->m_current_time_ms = 0;
+        time->m_ticks           = 0;
         time->m_tick_time       = 0.0f;
     }
 
     void tick_time(vm_time_t* time, u64 now_ms)
     {
-        u64 current_time = time->m_current_time_ms;
-        if (time->m_has_current_time == 0)
-        {
-            current_time = now_ms;
-            time->m_has_current_time = 1;
-        }
-
+        const u64 current_time  = (time->m_ticks == 0) ? now_ms : time->m_current_time_ms;
         time->m_tick_time       = (f32)(now_ms - current_time) / 1000.0f;
         time->m_current_time_ms = now_ms;
+        time->m_ticks += 1;
     }
 
     void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments)

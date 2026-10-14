@@ -227,14 +227,17 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             execute_builtin(&vm, make_builtin_function(BuiltInAbs, KindUint8));
             CHECK_EQUAL((u32)0x80, pop_bits32(&vm, KindUint8));
 
-            set_random_seed(&vm, 12345);
+            // set_random_seed(&vm, 12345);
+            initialize_builtins(&vm, 12345);
             execute_builtin(&vm, make_builtin_function(BuiltInRandom, KindInt32));
             const u32 first = pop_bits32(&vm, KindInt32);
             execute_builtin(&vm, make_builtin_function(BuiltInRandom, KindInt32));
             const u32 second = pop_bits32(&vm, KindInt32);
             CHECK_TRUE(first <= 0x7fffffffU);
             CHECK_TRUE(second <= 0x7fffffffU);
-            set_random_seed(&vm, 12345);
+
+            // set_random_seed(&vm, 12345);
+            initialize_builtins(&vm, 12345);
             execute_builtin(&vm, make_builtin_function(BuiltInRandom, KindInt32));
             CHECK_EQUAL(first, pop_bits32(&vm, KindInt32));
             execute_builtin(&vm, make_builtin_function(BuiltInRandom, KindInt32));

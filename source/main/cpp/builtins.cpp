@@ -43,9 +43,9 @@ namespace ncore
         next_random(rnd);
     }
 
-    void initialize_random(vm_random_t* rnd)
+    void initialize_random(vm_random_t* rnd, u64 seed)
     {
-        rnd->m_seed = scDefaultRandomSeed;
+        rnd->m_seed = seed;
         reset_random(rnd);
     }
 
@@ -56,18 +56,11 @@ namespace ncore
         reset_timers(&vm->m_timers);
     }
 
-    void initialize_builtins(vm_t* vm)
+    void initialize_builtins(vm_t* vm, u64 seed)
     {
         ASSERT(vm != nullptr);
-        initialize_random(&vm->m_random);
+        initialize_random(&vm->m_random, seed);
         initialize_timers(&vm->m_timers);
-    }
-
-    void set_random_seed(vm_t* vm, u64 seed)
-    {
-        ASSERT(vm != nullptr);
-        vm->m_random.m_seed = seed;
-        reset_builtins(vm);
     }
 
     static void execute_builtin_abs_32(vm_t* vm, evaluekind_t kind)
