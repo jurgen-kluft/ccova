@@ -15,7 +15,7 @@ namespace ncore
         u64       s1     = rnd->m_s0;
         const u64 s0     = rnd->m_s1;
         const u64 result = s0 + s1;
-        rnd->m_s0  = s0;
+        rnd->m_s0        = s0;
         s1 ^= s1 << 23;
         rnd->m_s1 = s1 ^ s0 ^ (s1 >> 18) ^ (s0 >> 5);
         return result;
@@ -30,10 +30,7 @@ namespace ncore
         }
     }
 
-    void initialize_timers(vm_timers_t* timers)
-    {
-        reset_timers(timers);
-    }
+    void initialize_timers(vm_timers_t* timers) { reset_timers(timers); }
 
     void reset_random(vm_random_t* rnd)
     {
@@ -106,7 +103,9 @@ namespace ncore
         push_bits64(vm, kind, bits);
     }
 
-    template <typename T> static bool builtin_min_or_max_fn(ebuiltinoperation_t operation, T left, T right) { return operation == BuiltInMin ? right < left : right > left; }
+    template <typename T>
+    static bool builtin_min_or_max_fn(ebuiltinoperation_t operation, T left, T right)
+    { return operation == BuiltInMin ? right < left : right > left; }
 
     static void execute_builtin_min_or_max_32(vm_t* vm, ebuiltinoperation_t operation, evaluekind_t kind)
     {
@@ -149,13 +148,15 @@ namespace ncore
         push_bits64(vm, kind, choose_right ? right_bits : left_bits);
     }
 
-    template <typename T> static T clamp_value(T value, T low, T high)
+    template <typename T>
+    static T clamp_value(T value, T low, T high)
     {
         ASSERT(low <= high);
         return value < low ? low : value > high ? high : value;
     }
 
-    template <typename T> static void sort_bounds(T& low, T& high)
+    template <typename T>
+    static void sort_bounds(T& low, T& high)
     {
         if (low > high)
         {
@@ -165,7 +166,8 @@ namespace ncore
         }
     }
 
-    template <typename T> static T map_value(T value, T in_low, T in_high, T out_low, T out_high)
+    template <typename T>
+    static T map_value(T value, T in_low, T in_high, T out_low, T out_high)
     {
         sort_bounds(in_low, in_high);
         sort_bounds(out_low, out_high);
@@ -201,7 +203,8 @@ namespace ncore
         push_bits32(vm, kind, clamp_value(value, low, high));
     }
 
-    template <typename T> static void execute_builtin_clamp64(vm_t* vm, evaluekind_t kind)
+    template <typename T>
+    static void execute_builtin_clamp64(vm_t* vm, evaluekind_t kind)
     {
         const T high  = (T)pop_bits64(vm, kind);
         const T low   = (T)pop_bits64(vm, kind);
@@ -266,7 +269,8 @@ namespace ncore
         push_bits32(vm, kind, map_value(value, in_low, in_high, out_low, out_high));
     }
 
-    template <typename T> static void execute_builtin_map64(vm_t* vm, evaluekind_t kind)
+    template <typename T>
+    static void execute_builtin_map64(vm_t* vm, evaluekind_t kind)
     {
         T       out_high = (T)pop_bits64(vm, kind);
         T       out_low  = (T)pop_bits64(vm, kind);
@@ -317,13 +321,15 @@ namespace ncore
         }
     }
 
-    template <typename T> static T pop_bits(vm_t* vm, evaluekind_t kind)
+    template <typename T>
+    static T pop_bits(vm_t* vm, evaluekind_t kind)
     {
         static_assert(sizeof(T) == sizeof(u32) || sizeof(T) == sizeof(u64), "unsupported builtin stack value width");
         return sizeof(T) == sizeof(u32) ? (T)pop_bits32(vm, kind) : (T)pop_bits64(vm, kind);
     }
 
-    template <typename T> static void push_bits(vm_t* vm, evaluekind_t kind, T value)
+    template <typename T>
+    static void push_bits(vm_t* vm, evaluekind_t kind, T value)
     {
         static_assert(sizeof(T) == sizeof(u32) || sizeof(T) == sizeof(u64), "unsupported builtin stack value width");
         if (sizeof(T) == sizeof(u32))
@@ -332,7 +338,8 @@ namespace ncore
             push_bits64(vm, kind, (u64)value);
     }
 
-    template <typename T> static void execute_builtin_fixed_point_t(vm_t* vm, ebuiltinoperation_t operation, evaluekind_t kind)
+    template <typename T>
+    static void execute_builtin_fixed_point_t(vm_t* vm, ebuiltinoperation_t operation, evaluekind_t kind)
     {
         ASSERT(operation == BuiltInLerp || operation == BuiltInSmoothStep);
         ASSERT((sizeof(T) == sizeof(s32) && kind == KindInt32) || (sizeof(T) == sizeof(s64) && kind == KindInt64));
@@ -515,39 +522,52 @@ namespace ncore
                 push_bits32(vm, KindFloat32, f32_to_bits(vm->m_time.m_tick_time));
                 break;
             case BuiltInTimerStart:
-            {
-                ASSERT(kind == KindVoid);
-                const u32 duration_ms = pop_u32(vm);
-                const u32 index       = get_timer_index(vm, pop_u8(vm));
-                vm->m_timers.m_duration_ms[index] = duration_ms;
-                vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_time.m_current_time_ms, (u64)duration_ms);
-                break;
-            }
+                {
+                    ASSERT(kind == KindVoid);
+                    const u32 duration_ms             = pop_u32(vm);
+                    const u32 index                   = get_timer_index(vm, pop_u8(vm));
+                    vm->m_timers.m_duration_ms[index] = duration_ms;
+                    vm->m_timers.m_end_time_ms[index] = duration_ms == 0 ? 0 : saturating_add_u64(vm->m_time.m_current_time_ms, (u64)duration_ms);
+                    break;
+                }
             case BuiltInTimerStop:
-            {
-                ASSERT(kind == KindVoid);
-                const u32 index = get_timer_index(vm, pop_u8(vm));
-                vm->m_timers.m_duration_ms[index] = 0;
-                vm->m_timers.m_end_time_ms[index] = 0;
-                break;
-            }
+                {
+                    ASSERT(kind == KindVoid);
+                    const u32 index                   = get_timer_index(vm, pop_u8(vm));
+                    vm->m_timers.m_duration_ms[index] = 0;
+                    vm->m_timers.m_end_time_ms[index] = 0;
+                    break;
+                }
             case BuiltInTimerReset:
-            {
-                ASSERT(kind == KindVoid);
-                const u32 index       = get_timer_index(vm, pop_u8(vm));
-                const u32 duration_ms = vm->m_timers.m_duration_ms[index];
-                vm->m_timers.m_end_time_ms[index] = saturating_add_u64(vm->m_time.m_current_time_ms, (u64)duration_ms);
-                break;
-            }
+                {
+                    ASSERT(kind == KindVoid);
+                    const u32 index       = get_timer_index(vm, pop_u8(vm));
+                    const u32 duration_ms = vm->m_timers.m_duration_ms[index];
+                    if (duration_ms > 0)
+                    {
+                        vm->m_timers.m_end_time_ms[index] = saturating_add_u64(vm->m_time.m_current_time_ms, (u64)duration_ms);
+                    }
+                    else
+                    {
+                        vm->m_timers.m_end_time_ms[index] = 0;
+                    }
+                    break;
+                }
             case BuiltInTimerDone:
-            {
-                ASSERT(kind == KindBool);
-                const u32 index = get_timer_index(vm, pop_u8(vm));
-                const u32 duration_ms = vm->m_timers.m_duration_ms[index];
-                const u32 done = vm->m_time.m_current_time_ms > vm->m_timers.m_end_time_ms[index] ? 1U : 0U;
-                push_bits32(vm, KindBool, done);
-                break;
-            }
+                {
+                    ASSERT(kind == KindBool);
+                    const u32 index = get_timer_index(vm, pop_u8(vm));
+                    if (vm->m_timers.m_end_time_ms[index] > 0)
+                    {
+                        const u32 done = vm->m_time.m_current_time_ms > vm->m_timers.m_end_time_ms[index] ? 1U : 0U;
+                        push_bits32(vm, KindBool, done);
+                    }
+                    else
+                    {
+                        push_bits32(vm, KindBool, 1U);
+                    }
+                    break;
+                }
             default: ASSERT(false); break;
         }
     }
@@ -674,4 +694,4 @@ namespace ncore
         return (builtin_function_t)(((u16)operation << 4) | (u16)kind);
     }
 
-} // namespace ncore
+}  // namespace ncore

@@ -289,7 +289,7 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             CHECK_EQUAL((u64)0, timer_end_time_ms[0]);
             push_bits32(&vm, KindUint8, 0);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
-            CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
+            CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
 
             vm.m_time.m_current_time_ms = 1250;
             push_bits32(&vm, KindUint8, 0);
@@ -304,14 +304,14 @@ UNITTEST_SUITE_BEGIN(cova_builtins)
             CHECK_EQUAL((u64)0, timer_end_time_ms[1]);
             push_bits32(&vm, KindUint8, 1);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
-            CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
+            CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
             vm.m_time.m_current_time_ms = 1201;
             push_bits32(&vm, KindUint8, 1);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
-            CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
+            CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
             push_bits32(&vm, KindUint8, 0);
             execute_builtin(&vm, make_builtin_function(BuiltInTimerDone, KindBool));
-            CHECK_EQUAL((u32)0, pop_bits32(&vm, KindBool));
+            CHECK_EQUAL((u32)1, pop_bits32(&vm, KindBool));
 
             vm.m_time.m_current_time_ms = ~(u64)0 - 10;
             push_bits32(&vm, KindUint8, 2);

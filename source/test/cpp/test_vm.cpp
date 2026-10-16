@@ -59,7 +59,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             CHECK_EQUAL((u32)VMDefaultTimerCapacity, vm.m_timers.m_capacity);
             CHECK_EQUAL((u64)0, vm.m_time.m_current_time_ms);
             CHECK_EQUAL((f32)0.0f, vm.m_time.m_tick_time);
-            CHECK_FALSE(vm.m_time.m_has_current_time);
+            CHECK_TRUE(vm.m_time.m_ticks == 0);
             for (u32 index = 0; index < VMDefaultTimerCapacity; ++index)
             {
                 CHECK_EQUAL((u64)0, timer_end_time_ms[index]);
@@ -143,7 +143,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
 
             vm.m_time.m_current_time_ms  = 1200;
             vm.m_time.m_tick_time        = 0.1f;
-            vm.m_time.m_has_current_time = true;
+            vm.m_time.m_ticks = 1;
             load_program(&vm, &program);
             for (u32 index = 0; index < 6; ++index)
                 CHECK_EQUAL((u8)0, bss_storage[index]);
@@ -151,7 +151,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
                 CHECK_EQUAL(data_data[index], data_storage[index]);
             CHECK_EQUAL((u64)1200, vm.m_time.m_current_time_ms);
             CHECK_EQUAL((f32)0.1f, vm.m_time.m_tick_time);
-            CHECK_TRUE(vm.m_time.m_has_current_time);
+            CHECK_TRUE(vm.m_time.m_ticks != 0);
         }
 
         UNITTEST_TEST(register_extern_dispatcher)

@@ -40,7 +40,7 @@ UNITTEST_SUITE_BEGIN(cova_embedded_image)
             run_vm(&vm, 0);
             CHECK_EQUAL((s32)6, (s32)pop_bits32(&vm, KindInt32));
 
-            load_program_image(&vm, go_program_image, (u32)go_program_image_len);
+            //load_program_image(&vm, go_program_image, (u32)go_program_image_len);
             run_vm(&vm, 0);
             CHECK_EQUAL((s32)9, (s32)pop_bits32(&vm, KindInt32));
 

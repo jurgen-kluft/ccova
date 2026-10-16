@@ -115,6 +115,8 @@ namespace ncore
         time->m_ticks += 1;
     }
 
+    static const u64 scDefaultRandomSeed = 0x1234567890abcdefULL;
+
     void initialize_vm(vm_t* vm, const vm_call_frames_t& call_frames, const vm_timers_t& timers, const vm_segments_t& segments)
     {
         ASSERT(call_frames.m_frames != nullptr);
@@ -143,7 +145,7 @@ namespace ncore
         initialize_time(&vm->m_time);
 
         vm->m_timers = timers;
-        initialize_builtins(vm);
+        initialize_builtins(vm, scDefaultRandomSeed);
     }
 
     void load_program(vm_t* vm, const linked_program_t* program)
