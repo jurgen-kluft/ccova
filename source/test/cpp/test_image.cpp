@@ -1,7 +1,7 @@
 #include "ccore/c_target.h"
 
 #include "ccova/byte_order.h"
-#include "ccova/program_image.h"
+#include "ccova/linked_program.h"
 #include "ccova/vm.h"
 
 #include "cunittest/cunittest.h"

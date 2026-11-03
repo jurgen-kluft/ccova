@@ -6,7 +6,8 @@
 
 namespace ncore
 {
-    template <typename T> struct relative_ptr_t
+    template <typename T>
+    struct relative_ptr_t
     {
         s32 m_offset;
 
@@ -27,7 +28,8 @@ namespace ncore
         }
     };
 
-    template <typename T> struct relative_array_t
+    template <typename T>
+    struct relative_array_t
     {
         relative_ptr_t<T> m_data;
         u32               m_size;
@@ -56,6 +58,13 @@ namespace ncore
         evaluekind_t m_return_kind;
     };
 
+    static const u32 ProgramImageMagic        = 0x41564f43U;
+    static const u32 ProgramImageVersion      = 0x00010004U;
+    static const u8  ProgramImageEndianLittle = 1;
+    static const u8  ProgramImageABI          = 1;
+    static const u32 ProgramImageHeaderSize   = 76;
+    static const u32 ProgramImageFunctionSize = 20;
+
     struct linked_program_t
     {
         u32                                 m_magic;
@@ -75,8 +84,10 @@ namespace ncore
         relative_array_t<byte>              m_data_data;
     };
 
-    void validate_linked_program(const linked_program_t* program);
-    void validate_linked_program(const void* program, u32 block_size);
-} // namespace ncore
+    bool validate_linked_program(const linked_program_t* program);
+    bool validate_linked_program(const void* program, u32 block_size);
+
+    const linked_program_t* open_program_image(const byte* block, u32 block_size);
+}  // namespace ncore
 
 #endif

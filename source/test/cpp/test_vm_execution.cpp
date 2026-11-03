@@ -2,7 +2,7 @@
 
 #include "ccova/float_bits.h"
 #include "ccova/builtins.h"
-#include "ccova/program_image.h"
+#include "ccova/linked_program.h"
 #include "ccova/vm.h"
 
 #include "cunittest/cunittest.h"
