@@ -76,7 +76,7 @@ namespace ncore
     };
 
     void validate_linked_program(const linked_program_t* program);
-    void validate_linked_program(const linked_program_t* program, u32 block_size);
+    void validate_linked_program(const void* program, u32 block_size);
 } // namespace ncore
 
 #endif

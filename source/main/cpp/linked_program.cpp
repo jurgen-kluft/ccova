@@ -17,13 +17,15 @@ namespace ncore
         ASSERTCTS(__builtin_offsetof(linked_program_t, m_data_data) == 68, "program data ABI mismatch");
     }
 
-    template <typename T> static void validate_array(const relative_array_t<T>& array)
+    template <typename T>
+    static void validate_array(const relative_array_t<T>& array)
     {
         ASSERT(array.m_data.get() != nullptr || array.m_size == 0);
         ASSERT(array.m_data.get() == nullptr || array.m_size != 0);
     }
 
-    template <typename T> static void validate_array(const linked_program_t* program, u32 block_size, const relative_array_t<T>& array)
+    template <typename T>
+    static void validate_array(const linked_program_t* program, u32 block_size, const relative_array_t<T>& array)
     {
         ASSERT(program != nullptr);
         if (array.m_size == 0)
@@ -87,8 +89,9 @@ namespace ncore
         validate_program_contents(program);
     }
 
-    void validate_linked_program(const linked_program_t* program, u32 block_size)
+    void validate_linked_program(const void* ptr, u32 block_size)
     {
+        const linked_program_t* program = (const linked_program_t*)ptr;
         ASSERT(program != nullptr);
         ASSERT(block_size >= sizeof(linked_program_t));
         validate_array(program, block_size, program->m_functions);
@@ -99,4 +102,4 @@ namespace ncore
         validate_array(program, block_size, program->m_data_data);
         validate_linked_program(program);
     }
-} // namespace ncore
+}  // namespace ncore
