@@ -2,7 +2,7 @@
 #include "ccova/builtins.h"
 #include "ccova/code_memory.h"
 #include "ccova/float_bits.h"
-#include "ccova/program_image.h"
+#include "ccova/linked_program.h"
 
 namespace ncore
 {

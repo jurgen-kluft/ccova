@@ -7,7 +7,7 @@
 
 namespace ncore
 {
-    static const u64 scDefaultRandomSeed = 0x1234567890abcdefULL;
+    //static const u64 scDefaultRandomSeed = 0x1234567890abcdefULL;
     static const u64 scRandomStateSeed   = 6364136223846793005ULL;
 
     static inline u64 next_random(vm_random_t* rnd)

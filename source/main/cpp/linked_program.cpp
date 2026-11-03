@@ -61,7 +61,7 @@ namespace ncore
         return valid;
     }
 
-    bool validate_linked_program(const linked_program_t* program, u32 block_size)
+    bool validate_linked_program(const linked_program_t* program)
     {
         bool valid = (program != nullptr);
         valid      = valid && (program->m_magic == ProgramImageMagic);
@@ -69,14 +69,7 @@ namespace ncore
         valid      = valid && (program->m_endian == ProgramImageEndianLittle);
         valid      = valid && (program->m_abi == ProgramImageABI);
 
-        valid = valid && (block_size >= sizeof(linked_program_t));
         valid = valid && validate_program_contents(program);
-        valid = valid && validate_array(program, block_size, program->m_functions);
-        valid = valid && validate_array(program, block_size, program->m_param_kinds);
-        valid = valid && validate_array(program, block_size, program->m_param_offsets);
-        valid = valid && validate_array(program, block_size, program->m_text);
-        valid = valid && validate_array(program, block_size, program->m_const_data);
-        valid = valid && validate_array(program, block_size, program->m_data_data);
         return valid;
 
         return valid;
@@ -85,7 +78,14 @@ namespace ncore
     bool validate_linked_program(const void* ptr, u32 block_size)
     {
         const linked_program_t* program = (const linked_program_t*)ptr;
-        return validate_linked_program(program, block_size);
+        bool valid = (block_size >= sizeof(linked_program_t));
+        valid = valid && validate_array(program, block_size, program->m_functions);
+        valid = valid && validate_array(program, block_size, program->m_param_kinds);
+        valid = valid && validate_array(program, block_size, program->m_param_offsets);
+        valid = valid && validate_array(program, block_size, program->m_text);
+        valid = valid && validate_array(program, block_size, program->m_const_data);
+        valid = valid && validate_array(program, block_size, program->m_data_data);
+        return validate_linked_program(program);
     }
 
     const linked_program_t* open_program_image(const byte* block, u32 block_size)
