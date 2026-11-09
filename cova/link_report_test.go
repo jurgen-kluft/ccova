@@ -22,7 +22,7 @@ int script_main() { return used(); }
 	if !ok {
 		t.Fatalf("Compile failed")
 	}
-	linker := NewLinker(ctx, 0, 3)
+	linker := NewLinker(ctx, [ExternMemoryBankCount]int{}, 3)
 	linked, success := linker.Link(program, compiled)
 	if !success {
 		t.Fatalf("Link failed")
@@ -54,7 +54,7 @@ int script_main() { return first() + second(); }
 	if !ok {
 		t.Fatalf("Compile failed")
 	}
-	linker := NewLinker(ctx, 0, 2)
+	linker := NewLinker(ctx, [ExternMemoryBankCount]int{}, 2)
 	linked, success := linker.Link(program, compiled)
 	if !success {
 		t.Fatalf("Link failed")
@@ -85,7 +85,7 @@ int script_main() { return 1; }
 	if !ok {
 		t.Fatalf("Compile failed")
 	}
-	if _, success := NewLinker(ctx, 0, 1).Link(program, compiled); success {
+	if _, success := NewLinker(ctx, [ExternMemoryBankCount]int{}, 1).Link(program, compiled); success {
 		t.Fatal("expected unused external function capacity error")
 	}
 }

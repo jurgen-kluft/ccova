@@ -147,8 +147,8 @@ float64 script_main() {
 
 func TestParseExpandedPrimitiveTypes(t *testing.T) {
 	script := `
-extern int8 small_value;
-extern uint64 flags;
+int8 small_value;
+uint64 flags;
 bool ready;
 float32 ratio;
 
@@ -291,7 +291,7 @@ struct home_state_t {
 	light_state_t m_light;
 };
 
-extern home_state_t g_home;
+extern(0) home_state_t g_home;
 
 int script_main() {
 	return 0;
@@ -309,20 +309,44 @@ int script_main() {
 	if dateField.Type.Kind != TypeArray || dateField.Type.Base != Uint8Type || dateField.Type.ElementCount != 16 {
 		t.Fatalf("unexpected date field type: %#v", dateField.Type)
 	}
-	if len(program.Decls) != 1 || program.Decls[0].Index != -1 || program.Decls[0].Type != homeType {
+	if len(program.Decls) != 1 || program.Decls[0].Index != 0 || program.Decls[0].Type != homeType {
 		t.Fatalf("unexpected extern declaration: %#v", program.Decls)
 	}
 }
 
-func TestParseRejectsExplicitExternVariableOffset(t *testing.T) {
+func TestParseRejectsExternVariableWithoutBankIndex(t *testing.T) {
 	ctx := NewContext()
-	tokens := mustTokenize(t, ctx, "extern(4) int value;")
+	tokens := mustTokenize(t, ctx, "struct value_t { int member; };\nextern value_t value;")
 	if _, ok := Parse(ctx, tokens); ok {
-		t.Fatal("expected automatic-offset migration error")
+		t.Fatal("expected missing memory bank index error")
 	}
 	issues := issueDescriptions(ctx)
-	if len(issues) == 0 || !strings.Contains(issues[0], "offsets are automatic") {
-		t.Fatalf("expected automatic-offset migration error, got %v", issues)
+	if len(issues) == 0 || !strings.Contains(issues[0], "explicit memory bank index") {
+		t.Fatalf("expected explicit memory bank index error, got %v", issues)
+	}
+}
+
+func TestParseRejectsExternVariableBankOutOfRange(t *testing.T) {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, "struct value_t { int member; };\nextern(4) value_t value;")
+	if _, ok := Parse(ctx, tokens); ok {
+		t.Fatal("expected out-of-range memory bank error")
+	}
+	issues := issueDescriptions(ctx)
+	if len(issues) == 0 || !strings.Contains(issues[0], "out of range") {
+		t.Fatalf("expected out-of-range memory bank error, got %v", issues)
+	}
+}
+
+func TestParseRejectsNonStructExternVariable(t *testing.T) {
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, "extern(0) int value;")
+	if _, ok := Parse(ctx, tokens); ok {
+		t.Fatal("expected non-struct extern variable error")
+	}
+	issues := issueDescriptions(ctx)
+	if len(issues) == 0 || !strings.Contains(issues[0], "must be struct instances") {
+		t.Fatalf("expected struct instance requirement error, got %v", issues)
 	}
 }
 
@@ -344,7 +368,7 @@ void script_main() { value_t local; return; }
 			name: "constant index",
 			script: `
 struct value_t { byte values[2]; };
-extern value_t value;
+extern(0) value_t value;
 void script_main() { value.values[2] = 1; return; }
 `,
 			message: "outside [0, 2)",

@@ -23,28 +23,41 @@ func (address Address) Index() uint32 {
 type memorySegment byte
 
 const (
-	segmentInvalid   memorySegment = 0
-	segmentFrame     memorySegment = 1
-	segmentBSS       memorySegment = 2
-	segmentExtern    memorySegment = 3
-	segmentConst     memorySegment = 4
-	segmentData      memorySegment = 5
-	segmentStack     memorySegment = 6
-	segmentReserved0 memorySegment = 7
-	segmentReserved1 memorySegment = 8
-	segmentCount     memorySegment = 9
+	segmentInvalid memorySegment = 0
+	segmentFrame   memorySegment = 1
+	segmentBSS     memorySegment = 2
+	segmentExtern0 memorySegment = 3
+	segmentExtern1 memorySegment = 4
+	segmentExtern2 memorySegment = 5
+	segmentExtern3 memorySegment = 6
+	segmentConst   memorySegment = 7
+	segmentData    memorySegment = 8
+	segmentStack   memorySegment = 9
+	segmentCount   memorySegment = 10
 )
 
+// ExternMemoryBankCount is the number of independent external memory banks.
+const ExternMemoryBankCount = 4
+
+func externSegment(bank uint32) memorySegment {
+	return segmentExtern0 + memorySegment(bank)
+}
+
+func isExternSegment(segment memorySegment) bool {
+	return segment >= segmentExtern0 && segment <= segmentExtern3
+}
+
 var segmentNames = [segmentCount]string{
-	segmentInvalid:   "invalid",
-	segmentFrame:     "frame",
-	segmentBSS:       "bss",
-	segmentExtern:    "extern",
-	segmentConst:     "const",
-	segmentData:      "data",
-	segmentStack:     "stack",
-	segmentReserved0: "reserved",
-	segmentReserved1: "reserved",
+	segmentInvalid: "invalid",
+	segmentFrame:   "frame",
+	segmentBSS:     "bss",
+	segmentExtern0: "extern0",
+	segmentExtern1: "extern1",
+	segmentExtern2: "extern2",
+	segmentExtern3: "extern3",
+	segmentConst:   "const",
+	segmentData:    "data",
+	segmentStack:   "stack",
 }
 
 func (segment memorySegment) String() string {

@@ -14,7 +14,7 @@ namespace
 
     static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, u64* timer_end_time_ms, u32* timer_duration_ms, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
     {
-        vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 128}};
+        vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {{external, 16, 16}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}}, {data, 0, 16}, {stack, 0, 128}};
         initialize_vm(vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
     }
 }  // namespace

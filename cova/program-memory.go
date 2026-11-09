@@ -11,16 +11,18 @@ func hostIntFromUint32(value uint32) (int, bool) {
 	return converted, converted >= 0 && uint32(converted) == value
 }
 
-func NewProgramMemory(externCount, constCount, dataCount, bssCount, frameCapacity, stackCapacity uint32) ProgramMemory {
+func NewProgramMemory(externCounts [ExternMemoryBankCount]uint32, constCount, dataCount, bssCount, frameCapacity, stackCapacity uint32) ProgramMemory {
 	pm := ProgramMemory{
 		segment: [segmentCount]MemorySegment{
-			segmentExtern: NewMemorySegment(externCount, externCount),
-			segmentConst:  NewMemorySegment(constCount, constCount),
-			segmentData:   NewMemorySegment(dataCount, dataCount),
-			segmentBSS:    NewMemorySegment(bssCount, bssCount),
-			segmentFrame:  NewMemorySegment(frameCapacity, frameCapacity),
-			segmentStack:  NewMemorySegment(0, stackCapacity),
+			segmentConst: NewMemorySegment(constCount, constCount),
+			segmentData:  NewMemorySegment(dataCount, dataCount),
+			segmentBSS:   NewMemorySegment(bssCount, bssCount),
+			segmentFrame: NewMemorySegment(frameCapacity, frameCapacity),
+			segmentStack: NewMemorySegment(0, stackCapacity),
 		},
+	}
+	for bank := uint32(0); bank < ExternMemoryBankCount; bank++ {
+		pm.segment[externSegment(bank)] = NewMemorySegment(externCounts[bank], externCounts[bank])
 	}
 	return pm
 }

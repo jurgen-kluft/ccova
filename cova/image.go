@@ -10,14 +10,14 @@ import (
 
 const (
 	ProgramImageMagic               = uint32('C') | uint32('O')<<8 | uint32('V')<<16 | uint32('A')<<24
-	ProgramImageVersion      uint32 = 0x00010004
+	ProgramImageVersion      uint32 = 0x00010005
 	ProgramImageEndianLittle uint8  = 1
 	ProgramImageABI          uint8  = 1
 
 	ProgramImageStringHeaderSize = 8
 	ProgramImageArrayHeaderSize  = 8
 	ProgramImageFunctionSize     = 20
-	ProgramImageHeaderSize       = 76
+	ProgramImageHeaderSize       = 92
 )
 
 type ProgramImageValueKind uint8
@@ -54,12 +54,21 @@ type ProgramImage struct {
 	BSSByteSize   uint32
 	FrameSize     uint32
 	FrameByteSize uint32
-	Functions     []ProgramImageFunction
-	ParamKinds    []ProgramImageValueKind
-	ParamOffsets  []uint32
-	Text          []byte
-	ConstData     []byte
-	DataData      []byte
+	// Required byte size of each external memory bank, stored inline in the header.
+	ExternByteSize0 uint32
+	ExternByteSize1 uint32
+	ExternByteSize2 uint32
+	ExternByteSize3 uint32
+	Functions       []ProgramImageFunction
+	ParamKinds      []ProgramImageValueKind
+	ParamOffsets    []uint32
+	Text            []byte
+	ConstData       []byte
+	DataData        []byte
+}
+
+func (image *ProgramImage) externByteSizes() [ExternMemoryBankCount]uint32 {
+	return [ExternMemoryBankCount]uint32{image.ExternByteSize0, image.ExternByteSize1, image.ExternByteSize2, image.ExternByteSize3}
 }
 
 func BuildProgramImage(program *LinkedProgram) ([]byte, VMStatus) {
@@ -199,20 +208,24 @@ func linkedProgramToImage(program *LinkedProgram) (*ProgramImage, VMStatus) {
 		return nil, status
 	}
 	image := &ProgramImage{
-		Magic:         ProgramImageMagic,
-		Version:       ProgramImageVersion,
-		Endian:        ProgramImageEndianLittle,
-		ABI:           ProgramImageABI,
-		EntryPoint:    entryPoint,
-		BSSByteSize:   bssByteSize,
-		FrameSize:     program.FrameSize,
-		FrameByteSize: program.FrameByteSize,
-		Functions:     functions,
-		ParamKinds:    paramKinds,
-		ParamOffsets:  append([]uint32(nil), program.ParamOffsets...),
-		Text:          append([]byte(nil), program.Text...),
-		ConstData:     append([]byte(nil), program.ConstData...),
-		DataData:      append([]byte(nil), program.DataData...),
+		Magic:           ProgramImageMagic,
+		Version:         ProgramImageVersion,
+		Endian:          ProgramImageEndianLittle,
+		ABI:             ProgramImageABI,
+		EntryPoint:      entryPoint,
+		BSSByteSize:     bssByteSize,
+		FrameSize:       program.FrameSize,
+		FrameByteSize:   program.FrameByteSize,
+		ExternByteSize0: program.ExternByteSizes[0],
+		ExternByteSize1: program.ExternByteSizes[1],
+		ExternByteSize2: program.ExternByteSizes[2],
+		ExternByteSize3: program.ExternByteSizes[3],
+		Functions:       functions,
+		ParamKinds:      paramKinds,
+		ParamOffsets:    append([]uint32(nil), program.ParamOffsets...),
+		Text:            append([]byte(nil), program.Text...),
+		ConstData:       append([]byte(nil), program.ConstData...),
+		DataData:        append([]byte(nil), program.DataData...),
 	}
 	if status := validateProgramImage(image); status != VMStatusOK {
 		return nil, status
@@ -268,18 +281,19 @@ func linkedProgramFromImage(image *ProgramImage) (*LinkedProgram, VMStatus) {
 		paramKinds[index] = ValueKind(image.ParamKinds[index])
 	}
 	program := &LinkedProgram{
-		Text:          CodeMemory(image.Text),
-		EntryPoint:    image.EntryPoint,
-		Functions:     functions,
-		ParamKinds:    paramKinds,
-		ParamOffsets:  append([]uint32(nil), image.ParamOffsets...),
-		ConstByteSize: lenU32(image.ConstData),
-		ConstData:     image.ConstData,
-		DataByteSize:  lenU32(image.DataData),
-		DataData:      image.DataData,
-		BSSByteSize:   image.BSSByteSize,
-		FrameSize:     image.FrameSize,
-		FrameByteSize: image.FrameByteSize,
+		Text:            CodeMemory(image.Text),
+		EntryPoint:      image.EntryPoint,
+		Functions:       functions,
+		ParamKinds:      paramKinds,
+		ParamOffsets:    append([]uint32(nil), image.ParamOffsets...),
+		ConstByteSize:   lenU32(image.ConstData),
+		ConstData:       image.ConstData,
+		DataByteSize:    lenU32(image.DataData),
+		DataData:        image.DataData,
+		BSSByteSize:     image.BSSByteSize,
+		FrameSize:       image.FrameSize,
+		FrameByteSize:   image.FrameByteSize,
+		ExternByteSizes: image.externByteSizes(),
 	}
 	return program, VMStatusOK
 }

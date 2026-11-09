@@ -135,29 +135,33 @@ func TestRunSupportsInternalGlobalsAndScriptCalls(t *testing.T) {
 	binary.LittleEndian.PutUint32(externMemory[4:], 45)
 	logged := 0
 	script := `
+struct host_state_t {
+	byte host_prefix[4];
+	int player_health;
+};
+
 extern(0) void log_alert(int data);
-extern byte host_prefix[4];
-extern int player_health;
+extern(0) host_state_t host;
 int health_drop;
 
 void script_main() {
 	health_drop = 5;
-	if ((player_health - 40) + 1) {
-		log_alert(player_health);
+	if ((host.player_health - 40) + 1) {
+		log_alert(host.player_health);
 		reduce_health(health_drop);
 	}
 	return;
 }
 
 void reduce_health(int delta) {
-	player_health = player_health - delta;
+	host.player_health = host.player_health - delta;
 	return;
 }
 `
 
 	linked := mustLinkProgram(t, script, len(externMemory), 1)
 	vm := NewVM(testFrameCapacityBytes)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	vm.RegisterExternDispatcher(0, func(_ uintptr, vm *VM, importID uint32) VMStatus {
 		if importID != 0 {
 			t.Fatalf("expected import id 0, got %d", importID)
@@ -449,16 +453,20 @@ void script_main() {
 }
 
 func TestRunSupportsInt64ByteAndBoolKinds(t *testing.T) {
-	externMemory := make([]byte, 10)
+	externMemory := make([]byte, 16)
 	script := `
-extern int64 total;
-extern byte flag;
-extern bool ready;
+struct host_state_t {
+	int64 total;
+	byte flag;
+	bool ready;
+};
+
+extern(0) host_state_t host;
 
 void script_main() {
-	total = bump(40);
-	flag = 255;
-	ready = 1;
+	host.total = bump(40);
+	host.flag = 255;
+	host.ready = 1;
 	return;
 }
 
@@ -469,7 +477,7 @@ int64 bump(int64 amount) {
 
 	linked := mustLinkProgram(t, script, len(externMemory), 0)
 	vm := NewVM(testFrameCapacityBytes)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	if err := vm.Run(linked, 0); err != VMStatusOK {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -488,22 +496,26 @@ func TestRunSupportsBooleanLiteralsAndLogicalShortCircuit(t *testing.T) {
 	externMemory := make([]byte, 3)
 	markCalls := 0
 	script := `
-extern bool and_value;
-extern bool or_value;
-extern bool normalized;
+struct host_state_t {
+	bool and_value;
+	bool or_value;
+	bool normalized;
+};
+
+extern(0) host_state_t host;
 extern(0) int mark_true();
 
 void script_main() {
-	and_value = false && mark_true();
-	or_value = true || mark_true();
-	normalized = 2 && 7;
+	host.and_value = false && mark_true();
+	host.or_value = true || mark_true();
+	host.normalized = 2 && 7;
 	return;
 }
 `
 
 	linked := mustLinkProgram(t, script, len(externMemory), 1)
 	vm := NewVM(testFrameCapacityBytes)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	vm.RegisterExternDispatcher(0, func(_ uintptr, vm *VM, importID uint32) VMStatus {
 		if importID != 0 {
 			t.Fatalf("expected import id 0, got %d", importID)
@@ -532,11 +544,15 @@ func TestRunSupportsBooleanFunctionBoundariesAndEvaluatesLogicalRightHandWhenNee
 	externMemory := make([]byte, 5)
 	markTrueCalls := 0
 	script := `
-extern bool and_value;
-extern bool or_value;
-extern bool mixed_value;
-extern bool returned_value;
-extern bool param_value;
+struct host_state_t {
+	bool and_value;
+	bool or_value;
+	bool mixed_value;
+	bool returned_value;
+	bool param_value;
+};
+
+extern(0) host_state_t host;
 extern(0) int mark_true();
 
 bool is_match(int value) {
@@ -544,15 +560,15 @@ bool is_match(int value) {
 }
 
 void record(bool flag) {
-	param_value = flag;
+	host.param_value = flag;
 	return;
 }
 
 void script_main() {
-	and_value = true && mark_true();
-	or_value = false || mark_true();
-	mixed_value = (10 > 5) && (2 == 2) || (1 < 0);
-	returned_value = is_match(2);
+	host.and_value = true && mark_true();
+	host.or_value = false || mark_true();
+	host.mixed_value = (10 > 5) && (2 == 2) || (1 < 0);
+	host.returned_value = is_match(2);
 	record(3);
 	return;
 }
@@ -560,7 +576,7 @@ void script_main() {
 
 	linked := mustLinkProgram(t, script, len(externMemory), 1)
 	vm := NewVM(testFrameCapacityBytes)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	vm.RegisterExternDispatcher(0, func(_ uintptr, vm *VM, importID uint32) VMStatus {
 		if importID != 0 {
 			t.Fatalf("expected import id 0, got %d", importID)
@@ -681,14 +697,18 @@ func TestHostInteropPreservesUint64Bits(t *testing.T) {
 	externMemory := make([]byte, 16)
 	binary.LittleEndian.PutUint64(externMemory[0:], uint64(1)<<63)
 	script := `
-extern uint64 source;
-extern uint64 sink;
+struct host_state_t {
+	uint64 source;
+	uint64 sink;
+};
+
+extern(0) host_state_t host;
 extern(0) void inspect(uint64 value);
 extern(1) uint64 bounce(uint64 value);
 
 void script_main() {
-	inspect(source);
-	sink = bounce(source);
+	inspect(host.source);
+	host.sink = bounce(host.source);
 	return;
 }
 `
@@ -696,7 +716,7 @@ void script_main() {
 	var seen uint64
 	linked := mustLinkProgram(t, script, len(externMemory), 2)
 	vm := NewVM(testFrameCapacityBytes)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	vm.RegisterExternDispatcher(0, func(_ uintptr, vm *VM, importID uint32) VMStatus {
 		value, status := vm.PopUint64()
 		if status != VMStatusOK {
@@ -728,16 +748,20 @@ func TestRunLeavesFinalReturnOnStack(t *testing.T) {
 	externMemory := make([]byte, 8)
 	binary.LittleEndian.PutUint64(externMemory[0:], uint64(1)<<63)
 	script := `
-extern uint64 source;
+struct host_state_t {
+	uint64 source;
+};
+
+extern(0) host_state_t host;
 
 uint64 script_main() {
-	return source;
+	return host.source;
 }
 `
 
 	linked := mustLinkProgram(t, script, len(externMemory), 0)
 	vm := NewVM(testFrameCapacityBytes)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	if err := vm.Run(linked, 0); err != VMStatusOK {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -1269,7 +1293,7 @@ func mustLinkProgram(t *testing.T, script string, variableCapacity, functionCapa
 	if !ok {
 		t.Fatalf("Compile failed")
 	}
-	linked, success := NewLinker(ctx, variableCapacity, functionCapacity).Link(program, compiled)
+	linked, success := NewLinker(ctx, [ExternMemoryBankCount]int{variableCapacity, variableCapacity, variableCapacity, variableCapacity}, functionCapacity).Link(program, compiled)
 	if !success {
 		t.Fatalf("Link failed")
 	}

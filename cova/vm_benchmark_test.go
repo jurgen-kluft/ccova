@@ -22,7 +22,7 @@ func benchmarkLinkedProgram(b *testing.B, source string) *LinkedProgram {
 	if !ok {
 		b.Fatalf("Compile failed: %v", issueDescriptions(ctx))
 	}
-	linked, success := NewLinker(ctx, 0, 0).Link(program, compiled)
+	linked, success := NewLinker(ctx, [ExternMemoryBankCount]int{}, 0).Link(program, compiled)
 	if !success {
 		b.Fatalf("Link failed")
 	}

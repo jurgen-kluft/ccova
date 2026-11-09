@@ -69,7 +69,7 @@ func NewVMWithConfig(config VMConfig) *VM {
 		config.TimerCapacity = maxTimerCapacity
 	}
 	vm := &VM{
-		memory:     NewProgramMemory(0, 0, 0, 0, config.FrameCapacity, config.StackCapacity),
+		memory:     NewProgramMemory([ExternMemoryBankCount]uint32{}, 0, 0, 0, config.FrameCapacity, config.StackCapacity),
 		callFrames: make([]callFrame, config.CallFrameCapacity),
 		fault:      noVMFault(),
 		timers:     make([]timerSlot, config.TimerCapacity),
@@ -100,24 +100,36 @@ func (vm *VM) SetRandomSeed(seed uint64) {
 	vm.resetRandom()
 }
 
-func (vm *VM) AllocateExternMemory(size uint32) {
-	vm.memory.segment[segmentExtern] = NewMemorySegment(size, size)
+func (vm *VM) AllocateExternMemory(bank uint32, size uint32) {
+	if bank >= ExternMemoryBankCount {
+		return
+	}
+	vm.memory.segment[externSegment(bank)] = NewMemorySegment(size, size)
 }
 
-func (vm *VM) BindExternBlock(block []byte) {
-	vm.memory.segment[segmentExtern] = block
+func (vm *VM) BindExternBlock(bank uint32, block []byte) {
+	if bank >= ExternMemoryBankCount {
+		return
+	}
+	vm.memory.segment[externSegment(bank)] = block
 }
 
-func (vm *VM) LoadExternInt32(offset uint32) int32 {
-	value, status := vm.memory.ReadInt32(makeAddress(segmentExtern, offset))
+func (vm *VM) LoadExternInt32(bank uint32, offset uint32) int32 {
+	if bank >= ExternMemoryBankCount {
+		return 0
+	}
+	value, status := vm.memory.ReadInt32(makeAddress(externSegment(bank), offset))
 	if status != VMStatusOK {
 		return 0
 	}
 	return value
 }
 
-func (vm *VM) StoreExternInt32(offset uint32, value int32) {
-	_ = vm.memory.WriteInt32(makeAddress(segmentExtern, offset), value)
+func (vm *VM) StoreExternInt32(bank uint32, offset uint32, value int32) {
+	if bank >= ExternMemoryBankCount {
+		return
+	}
+	_ = vm.memory.WriteInt32(makeAddress(externSegment(bank), offset), value)
 }
 
 func (vm *VM) RegisterExternDispatcher(hostContext uintptr, dispatcher ExternDispatcher) {
@@ -285,6 +297,14 @@ func (vm *VM) LoadProgram(program *LinkedProgram) VMStatus {
 		vm.memory.segment[segmentData] = NewMemorySegment(program.DataByteSize, program.DataByteSize)
 	}
 	vm.memory.segment[segmentConst] = MemorySegment(program.ConstData)
+	for bank := uint32(0); bank < ExternMemoryBankCount; bank++ {
+		required := program.ExternByteSizes[bank]
+		bound := len(vm.memory.segment[externSegment(bank)])
+		// Unbound banks are allowed; accesses fault at runtime. Bound banks must be large enough.
+		if bound > 0 && uint64(bound) < uint64(required) {
+			return vm.setFault(VMStatusInvalidImage, int(bank), int(required), bound)
+		}
+	}
 	vm.program = program
 	return VMStatusOK
 }

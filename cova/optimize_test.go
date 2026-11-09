@@ -158,7 +158,7 @@ func runOptimizerTestProgram(t *testing.T, source string, optimize bool) int32 {
 	if !ok {
 		t.Fatalf("Compile failed")
 	}
-	linked, success := NewLinker(ctx, 0, 0).Link(program, compiled)
+	linked, success := NewLinker(ctx, [ExternMemoryBankCount]int{}, 0).Link(program, compiled)
 	if !success {
 		t.Fatalf("Link failed")
 	}

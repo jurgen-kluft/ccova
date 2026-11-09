@@ -73,15 +73,26 @@ namespace ncore
     enum ememorysegment_t : u8
     {
         SegmentInvalid = 0,
-        SegmentFrame,     // Frame segment (local variables)
-        SegmentBSS,       // Uninitialized global/static variables
-        SegmentExtern,    // Externally defined variables
-        SegmentConst,     // Constant data
-        SegmentData,      // Initialized global/static variables
-        SegmentStack,     // Stack segment (function call stack)
-        SegmentReserved0, // Reserved segment 0
-        SegmentCount,     // Total number of segments (8)
+        SegmentFrame,   // Frame segment (local variables)
+        SegmentBSS,     // Uninitialized global/static variables
+        SegmentExtern0, // Externally defined variables, memory bank 0
+        SegmentExtern1, // Externally defined variables, memory bank 1
+        SegmentExtern2, // Externally defined variables, memory bank 2
+        SegmentExtern3, // Externally defined variables, memory bank 3
+        SegmentConst,   // Constant data
+        SegmentData,    // Initialized global/static variables
+        SegmentStack,   // Stack segment (function call stack)
+        SegmentCount,   // Total number of segments (10)
     };
+
+    static const u32 ExternMemoryBankCount = 4;
+
+    inline ememorysegment_t extern_segment(u32 bank)
+    {
+        ASSERT(bank < ExternMemoryBankCount);
+        return (ememorysegment_t)((u32)SegmentExtern0 + bank);
+    }
+    inline bool is_extern_segment(ememorysegment_t segment) { return segment >= SegmentExtern0 && segment <= SegmentExtern3; }
 
     typedef u16 instruction_t;
 

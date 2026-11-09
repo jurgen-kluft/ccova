@@ -581,7 +581,9 @@ type LinkedProgram struct {
 	DataData      []byte
 	BSSSize       uint32
 	BSSByteSize   uint32
-	DebugSymbols  *ProgramSymbols
+	// ExternByteSizes records the required byte size of each external memory bank.
+	ExternByteSizes [ExternMemoryBankCount]uint32
+	DebugSymbols    *ProgramSymbols
 }
 
 type RelocatableProgram struct {
@@ -599,6 +601,7 @@ type RelocatableProgram struct {
 	DataData                []byte
 	BSSSize                 uint32
 	BSSByteSize             uint32
+	ExternByteSizes         [ExternMemoryBankCount]uint32
 }
 
 func alignUpU32(offset uint32, alignment uint32) uint32 {

@@ -127,7 +127,11 @@ namespace ncore
         ASSERT(timers.m_capacity != 0 && timers.m_capacity <= 256);
         ASSERT(s_validate_segment_storage(segments.m_frame));
         ASSERT(s_validate_segment_storage(segments.m_bss));
-        ASSERT(s_validate_segment_storage(segments.m_external));
+        for (u32 bank = 0; bank < ExternMemoryBankCount; ++bank)
+        {
+            // Unbound banks are allowed ({nullptr, 0, 0}); accesses to them fault at runtime.
+            ASSERT(s_validate_segment_storage(segments.m_external[bank]));
+        }
         ASSERT(s_validate_segment_storage(segments.m_data));
         ASSERT(s_validate_segment_storage(segments.m_stack));
         ASSERT(segments.m_frame.m_size == segments.m_frame.m_capacity);
@@ -150,6 +154,7 @@ namespace ncore
 
     void load_program(vm_t* vm, const linked_program_t* program)
     {
+        ASSERT(program != nullptr);
         validate_linked_program(program);
         ASSERT(vm->m_program == nullptr || vm->m_program == program);
 
@@ -165,6 +170,13 @@ namespace ncore
         constant->m_data           = const_cast<byte*>(program->m_const_data.data());
         constant->m_size           = program->m_const_data.m_size;
         constant->m_capacity       = program->m_const_data.m_size;
+        for (u32 bank = 0; bank < ExternMemoryBankCount; ++bank)
+        {
+            // Bound banks must satisfy the program's required size; unbound banks fault on first access.
+            const segment_memory_t* external = &vm->m_memory.m_segments[extern_segment(bank)];
+            ASSERT(external->m_data == nullptr || program->m_extern_byte_sizes[bank] <= external->m_size);
+            (void)external;
+        }
         vm->m_program              = program;
         s_clear_data(bss);
         s_copy_bytes(data, program->m_data_data);

@@ -7,22 +7,26 @@ The language is a small, typed, C-like scripting language intended to compile in
 ## Example
 
 ```c
+struct player_state_t {
+    int health;
+};
+
 extern(0) void log_alert(int value);
-extern int player_health;
+extern(0) player_state_t player;
 
 int health_drop;
 
 void script_main() {
     health_drop = 5;
-    if ((player_health - 40) + 1) {
-        log_alert(player_health);
+    if ((player.health - 40) + 1) {
+        log_alert(player.health);
         reduce_health(health_drop);
     }
     return;
 }
 
 void reduce_health(int delta) {
-    player_health = player_health - delta;
+    player.health = player.health - delta;
     return;
 }
 ```
@@ -34,7 +38,7 @@ The language currently supports:
 - Top-level global variables
 - Local variables inside blocks
 - `const` globals, locals, and parameters
-- Host-linked `extern` variables
+- Host-linked `extern` struct variables, one per external memory bank (up to 4)
 - Host-linked `extern` functions
 - Top-level named structs with naturally aligned fields
 - Fixed arrays and `char`
@@ -69,7 +73,7 @@ top_level      ::= struct_decl | extern_decl | global_decl | function_decl
 
 struct_decl    ::= "struct" ident "{" field_decl* "}" ";"
 field_decl     ::= type declarator ";"
-extern_decl    ::= "extern" type declarator ";"
+extern_decl    ::= "extern" "(" number ")" type ident ";"
                  | "extern" "(" number ")" type ident "(" param_list? ")" ";"
 global_decl    ::= type declarator ("=" expr)? ";"
 function_decl  ::= type ident "(" param_list? ")" block
@@ -158,10 +162,10 @@ Notes:
 A line comment starts with `//` and continues to the end of the line. It can occupy a whole line or follow source code.
 
 ```c
-extern int player_health;
+int player_health;
 
 void apply_damage() {
-    // Use the host-provided health value.
+    // Reduce the tracked health value.
     int health_drop = 5;
     player_health = player_health - health_drop; // Apply the damage.
 }
@@ -207,17 +211,31 @@ const uint8* const asset_path = "asset/button_off";
 
 ### Extern variables
 
-Extern variables map onto a host-provided memory block. The compiler assigns naturally aligned byte offsets in source declaration order.
+Extern variables bind host-provided external memory. There are up to 4 independent external memory banks, and each bank is described by exactly one struct-typed extern variable. The parenthesized index selects the memory bank (0-3), and the struct's natural field layout defines the bank's memory layout starting at byte offset 0. Fields are accessed as `instance.field`.
 
 ```c
-extern int32 health;       // offset 0
-extern uint64 flags;       // offset 8
-extern float64 temperature; // offset 16
+struct game_state_t {
+    int32 health;       // bank 0, offset 0
+    uint64 flags;       // bank 0, offset 8
+    float64 temperature; // bank 0, offset 16
+};
+
+struct hud_state_t {
+    bool visible;       // bank 1, offset 0
+};
+
+extern(0) game_state_t game;
+extern(1) hud_state_t hud;
 ```
 
-Parenthesized slots remain required for extern functions, but explicit offsets are no longer accepted for extern variables.
+Rules:
 
-`extern` variables cannot be declared with `const`.
+- Extern variables must be struct instances; loose primitive extern variables are not accepted.
+- Every extern variable requires an explicit memory bank index `extern(0..3)`.
+- At most one extern struct may be bound to each memory bank.
+- `extern` variables cannot be declared with `const`.
+
+The linked program records the required byte size of each bank, and the VM validates bound banks against those sizes at load time. Banks that a script does not declare can remain unbound on the host side; accessing an unbound bank faults at runtime.
 
 ### Extern functions
 
@@ -741,24 +759,30 @@ Host interop happens through `extern` declarations.
 
 ### Extern memory
 
-The host can bind a byte slice as extern memory. Extern variables read and write at compiler-generated, naturally aligned offsets.
+The host can bind up to 4 independent byte slices as external memory banks. Each bank is described by one struct-typed extern variable whose explicit index selects the bank; the struct's naturally aligned field layout defines the bank's byte layout.
 
 ```c
-extern int64 total;
-extern byte flag;
-extern bool ready;
+struct host_state_t {
+    int64 total;
+    byte flag;
+    bool ready;
+};
+
+extern(0) host_state_t host;
 ```
 
 Script:
 
 ```c
 void script_main() {
-    total = 42;
-    flag = 255;
-    ready = 1;
+    host.total = 42;
+    host.flag = 255;
+    host.ready = 1;
     return;
 }
 ```
+
+Banks that the script does not declare can stay unbound on the host side; reads or writes to an unbound bank fault at runtime. Bound banks are validated at load time against the per-bank byte sizes recorded in the program image.
 
 ### Extern functions
 
@@ -875,10 +899,14 @@ void script_main() {
 ### Extern memory
 
 ```c
-extern int value;
+struct host_state_t {
+    int value;
+};
+
+extern(0) host_state_t host;
 
 void script_main() {
-    value = value + 9;
+    host.value = host.value + 9;
     return;
 }
 ```
@@ -903,6 +931,6 @@ The current language is a compact VM scripting language with:
 - Functions
 - Numeric expressions
 - Structured control flow
-- Host interop via extern variables and extern functions
+- Host interop via extern struct variables (one per external memory bank) and extern functions
 
 It is best suited today for small rule scripts, control-flow-heavy logic, and host-integrated numeric scripting, rather than general-purpose programming.

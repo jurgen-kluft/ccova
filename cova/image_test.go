@@ -75,24 +75,24 @@ int script_main() {
 	if got := binary.LittleEndian.Uint32(imageA[24:28]); got != linked.FrameByteSize {
 		t.Fatalf("serialized frame byte size = %d, want %d", got, linked.FrameByteSize)
 	}
-	functionDisplacement := int64(int32(binary.LittleEndian.Uint32(imageA[28:32])))
-	functionOffset := int64(28) + functionDisplacement
+	functionDisplacement := int64(int32(binary.LittleEndian.Uint32(imageA[44:48])))
+	functionOffset := int64(44) + functionDisplacement
 	if functionDisplacement == 0 || functionOffset < ProgramImageHeaderSize || functionOffset >= int64(len(imageA)) {
 		t.Fatalf("invalid relative functions pointer: displacement=%d target=%d", functionDisplacement, functionOffset)
 	}
-	if got := binary.LittleEndian.Uint32(imageA[32:36]); got != uint32(len(linked.Functions)) {
+	if got := binary.LittleEndian.Uint32(imageA[48:52]); got != uint32(len(linked.Functions)) {
 		t.Fatalf("serialized function count = %d, want %d", got, len(linked.Functions))
 	}
 	arrayHeaders := []struct {
 		offset int
 		length int
 	}{
-		{28 + (0 * 8), len(linked.Functions)},
-		{28 + (1 * 8), len(linked.ParamKinds)},
-		{28 + (2 * 8), len(linked.ParamOffsets)},
-		{28 + (3 * 8), len(linked.Text)},
-		{28 + (4 * 8), len(linked.ConstData)},
-		{28 + (5 * 8), len(linked.DataData)},
+		{44 + (0 * 8), len(linked.Functions)},
+		{44 + (1 * 8), len(linked.ParamKinds)},
+		{44 + (2 * 8), len(linked.ParamOffsets)},
+		{44 + (3 * 8), len(linked.Text)},
+		{44 + (4 * 8), len(linked.ConstData)},
+		{44 + (5 * 8), len(linked.DataData)},
 	}
 	for _, header := range arrayHeaders {
 		displacement := int64(int32(binary.LittleEndian.Uint32(imageA[header.offset : header.offset+4])))
@@ -149,7 +149,7 @@ func TestOpenProgramImageRejectsCorruptionAndInvalidSchema(t *testing.T) {
 		t.Fatalf("version 3 image status = %s, want unsupported image", status)
 	}
 	contradictoryArray := append([]byte(nil), blob...)
-	binary.LittleEndian.PutUint32(contradictoryArray[36:40], 0)
+	binary.LittleEndian.PutUint32(contradictoryArray[52:56], 0)
 	if status := OpenProgramImageStatus(contradictoryArray); status != VMStatusInvalidImage {
 		t.Fatalf("null parameter-kind data with non-zero length status = %s, want invalid image", status)
 	}

@@ -9,7 +9,7 @@ namespace ncore
     struct program_memory_t
     { segment_memory_t m_segments[SegmentCount]; };
 
-    void initialize_program_memory(program_memory_t* memory, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t& external, const segment_memory_t& constant, const segment_memory_t& data, const segment_memory_t& stack);
+    void initialize_program_memory(program_memory_t* memory, const segment_memory_t& frame, const segment_memory_t& bss, const segment_memory_t external[ExternMemoryBankCount], const segment_memory_t& constant, const segment_memory_t& data, const segment_memory_t& stack);
 
     inline bool is_active_segment(ememorysegment_t segment) { return segment >= SegmentFrame && segment <= SegmentStack; }
 

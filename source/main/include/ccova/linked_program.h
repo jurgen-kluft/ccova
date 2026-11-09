@@ -59,10 +59,10 @@ namespace ncore
     };
 
     static const u32 ProgramImageMagic        = 0x41564f43U;
-    static const u32 ProgramImageVersion      = 0x00010004U;
+    static const u32 ProgramImageVersion      = 0x00010005U;
     static const u8  ProgramImageEndianLittle = 1;
     static const u8  ProgramImageABI          = 1;
-    static const u32 ProgramImageHeaderSize   = 76;
+    static const u32 ProgramImageHeaderSize   = 92;
     static const u32 ProgramImageFunctionSize = 20;
 
     struct linked_program_t
@@ -76,6 +76,7 @@ namespace ncore
         u32                                 m_bss_byte_size;
         u32                                 m_frame_size;
         u32                                 m_frame_byte_size;
+        u32                                 m_extern_byte_sizes[ExternMemoryBankCount];  // Required byte size of each external memory bank
         relative_array_t<script_function_t> m_functions;
         relative_array_t<evaluekind_t>      m_param_kinds;
         relative_array_t<u32>               m_param_offsets;

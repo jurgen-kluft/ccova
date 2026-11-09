@@ -23,16 +23,17 @@ UNITTEST_SUITE_BEGIN(cova_program_memory)
             byte stack_storage[8]  = {};
 
             program_memory_t memory;
-            initialize_program_memory(&memory, {frame_storage, 8, 8}, {bss_storage, 8, 8}, {extern_storage, 8, 8}, {const_storage, 8, 8}, {data_storage, 8, 8}, {stack_storage, 0, 8});
+            const segment_memory_t externals[ExternMemoryBankCount] = {{extern_storage, 8, 8}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}};
+            initialize_program_memory(&memory, {frame_storage, 8, 8}, {bss_storage, 8, 8}, externals, {const_storage, 8, 8}, {data_storage, 8, 8}, {stack_storage, 0, 8});
 
-            write_u8(&memory, make_address(SegmentExtern, 0), 11);
+            write_u8(&memory, make_address(SegmentExtern0, 0), 11);
             write_u8(&memory, make_address(SegmentBSS, 1), 12);
             write_u8(&memory, make_address(SegmentFrame, 2), 13);
 
             CHECK_EQUAL((u8)11, extern_storage[0]);
             CHECK_EQUAL((u8)12, bss_storage[1]);
             CHECK_EQUAL((u8)13, frame_storage[2]);
-            CHECK_EQUAL((u8)11, read_u8(&memory, make_address(SegmentExtern, 0)));
+            CHECK_EQUAL((u8)11, read_u8(&memory, make_address(SegmentExtern0, 0)));
             CHECK_EQUAL((u8)12, read_u8(&memory, make_address(SegmentBSS, 1)));
             CHECK_EQUAL((u8)13, read_u8(&memory, make_address(SegmentFrame, 2)));
         }
@@ -42,10 +43,11 @@ UNITTEST_SUITE_BEGIN(cova_program_memory)
             byte                   storage[64]      = {};
             byte                   const_storage[8] = {0x78, 0x56, 0x34, 0x12};
             program_memory_t       memory;
-            const segment_memory_t empty = {nullptr, 0, 0};
-            initialize_program_memory(&memory, empty, empty, {storage, 64, 64}, {const_storage, 8, 8}, empty, empty);
+            const segment_memory_t empty                              = {nullptr, 0, 0};
+            const segment_memory_t externals[ExternMemoryBankCount] = {{storage, 64, 64}, empty, empty, empty};
+            initialize_program_memory(&memory, empty, empty, externals, {const_storage, 8, 8}, empty, empty);
 
-            const address_t external = make_address(SegmentExtern, 0);
+            const address_t external = make_address(SegmentExtern0, 0);
 
             write_bool(&memory, external, true);
             CHECK_TRUE(read_bool(&memory, external));

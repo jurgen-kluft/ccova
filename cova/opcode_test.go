@@ -160,7 +160,7 @@ func testOpcodeCoverageCallExtern(t *testing.T) {
 }
 
 func TestOpcodeAddressAllSegments(t *testing.T) {
-	segments := []memorySegment{segmentFrame, segmentBSS, segmentExtern, segmentConst, segmentData, segmentStack}
+	segments := []memorySegment{segmentFrame, segmentBSS, segmentExtern0, segmentConst, segmentData, segmentStack}
 	for _, segment := range segments {
 		t.Run(segment.String(), func(t *testing.T) {
 			address := makeAddress(segment, 7)

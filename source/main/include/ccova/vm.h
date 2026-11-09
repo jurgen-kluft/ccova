@@ -59,7 +59,7 @@ namespace ncore
     {
         segment_memory_t m_frame;
         segment_memory_t m_bss;
-        segment_memory_t m_external;
+        segment_memory_t m_external[ExternMemoryBankCount];
         segment_memory_t m_data;
         segment_memory_t m_stack;
     };

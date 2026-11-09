@@ -4,7 +4,11 @@ import "testing"
 
 func TestCompileComputesByteLayoutMetadata(t *testing.T) {
 	script := `
-extern uint64 flags;
+struct host_flags_t {
+	uint64 flags;
+};
+
+extern(0) host_flags_t host;
 bool ready;
 int32 count;
 int16 small;
@@ -29,6 +33,12 @@ void script_main(int8 tag, uint64 mask) {
 	extern := compiled.ProgramSymbols.ExternSymbols[0]
 	if extern.ByteOffset != 0 || extern.ByteSize != 8 || extern.ByteAlignment != 8 {
 		t.Fatalf("unexpected extern layout: offset=%d size=%d align=%d", extern.ByteOffset, extern.ByteSize, extern.ByteAlignment)
+	}
+	if extern.SlotIndex != 0 {
+		t.Fatalf("expected extern memory bank 0, got %d", extern.SlotIndex)
+	}
+	if compiled.ExternByteSizes != [ExternMemoryBankCount]uint32{0: 8} {
+		t.Fatalf("unexpected extern bank sizes: %v", compiled.ExternByteSizes)
 	}
 
 	if len(compiled.ProgramSymbols.BSSSymbols) != 3 {
@@ -57,10 +67,18 @@ void script_main(int8 tag, uint64 mask) {
 	}
 }
 
-func TestCompileAlignsAutomaticExternOffsets(t *testing.T) {
+func TestCompileAssignsExternBanksFromDeclarations(t *testing.T) {
 	script := `
-extern uint8 prefix;
-extern int32 value;
+struct prefix_state_t {
+	uint8 prefix;
+};
+
+struct value_state_t {
+	int32 value;
+};
+
+extern(2) prefix_state_t prefix;
+extern(0) value_state_t value;
 
 void script_main() {
 	return;
@@ -78,17 +96,57 @@ void script_main() {
 	if len(compiled.ProgramSymbols.ExternSymbols) != 2 {
 		t.Fatalf("expected 2 extern symbols, got %d", len(compiled.ProgramSymbols.ExternSymbols))
 	}
+	if got := compiled.ProgramSymbols.ExternSymbols[0].SlotIndex; got != 2 {
+		t.Fatalf("expected prefix in memory bank 2, got %d", got)
+	}
+	if got := compiled.ProgramSymbols.ExternSymbols[1].SlotIndex; got != 0 {
+		t.Fatalf("expected value in memory bank 0, got %d", got)
+	}
 	if got := compiled.ProgramSymbols.ExternSymbols[0].ByteOffset; got != 0 {
 		t.Fatalf("expected prefix at offset 0, got %d", got)
 	}
-	if got := compiled.ProgramSymbols.ExternSymbols[1].ByteOffset; got != 4 {
-		t.Fatalf("expected value at offset 4, got %d", got)
+	if got := compiled.ProgramSymbols.ExternSymbols[1].ByteOffset; got != 0 {
+		t.Fatalf("expected value at offset 0, got %d", got)
+	}
+	if compiled.ExternByteSizes != [ExternMemoryBankCount]uint32{0: 4, 2: 1} {
+		t.Fatalf("unexpected extern bank sizes: %v", compiled.ExternByteSizes)
+	}
+}
+
+func TestCompileRejectsDuplicateExternBank(t *testing.T) {
+	script := `
+struct a_t {
+	uint8 value;
+};
+
+struct b_t {
+	int32 value;
+};
+
+extern(1) a_t first;
+extern(1) b_t second;
+
+void script_main() {
+	return;
+}
+`
+
+	ctx := NewContext()
+	tokens := mustTokenize(t, ctx, script)
+	program := mustParseTokens(t, ctx, tokens)
+
+	if _, ok := NewCompiler(ctx).Compile(program); ok {
+		t.Fatal("expected duplicate extern memory bank to fail compilation")
 	}
 }
 
 func TestLinkAttachesDebugSymbolsSeparately(t *testing.T) {
 	script := `
-extern uint64 flags;
+struct host_flags_t {
+	uint64 flags;
+};
+
+extern(0) host_flags_t host;
 bool ready;
 
 void script_main() {
@@ -104,7 +162,7 @@ void script_main() {
 	if !ok {
 		t.Fatalf("Compile failed")
 	}
-	linked, success := NewLinker(ctx, 16, 0).Link(program, compiled)
+	linked, success := NewLinker(ctx, [ExternMemoryBankCount]int{0: 16}, 0).Link(program, compiled)
 	if !success {
 		t.Fatalf("Link failed")
 	}

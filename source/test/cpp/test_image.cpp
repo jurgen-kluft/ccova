@@ -57,16 +57,16 @@ UNITTEST_SUITE_BEGIN(cova_image)
             byte* block = (byte*)aligned_storage;
             write_image_header(block, 0, 12, 1, 4);
 
-            const u32 functions_offset     = 76;
-            const u32 param_kinds_offset   = 116;
-            const u32 param_offsets_offset = 120;
-            const u32 text_offset          = 124;
-            write_array_header(block, 28, 2, functions_offset);
-            write_array_header(block, 36, 1, param_kinds_offset);
-            write_array_header(block, 44, 1, param_offsets_offset);
-            write_array_header(block, 52, 4, text_offset);
-            write_array_header(block, 60, 0, 0);
-            write_array_header(block, 68, 0, 0);
+            const u32 functions_offset     = 92;
+            const u32 param_kinds_offset   = 132;
+            const u32 param_offsets_offset = 136;
+            const u32 text_offset          = 140;
+            write_array_header(block, 44, 2, functions_offset);
+            write_array_header(block, 52, 1, param_kinds_offset);
+            write_array_header(block, 60, 1, param_offsets_offset);
+            write_array_header(block, 68, 4, text_offset);
+            write_array_header(block, 76, 0, 0);
+            write_array_header(block, 84, 0, 0);
             write_function(block, functions_offset, 0, 0, 0, 0, KindVoid);
             write_function(block, functions_offset + ProgramImageFunctionSize, 2, 0, 1, 4, KindInt32);
             block[param_kinds_offset] = KindInt32;
@@ -94,16 +94,16 @@ UNITTEST_SUITE_BEGIN(cova_image)
             byte* block = (byte*)aligned_storage;
             write_image_header(block, 0, 4, 0, 0);
 
-            const u32 functions_offset = 76;
-            const u32 text_offset      = 96;
-            const u32 const_offset     = 104;
-            const u32 data_offset      = 108;
-            write_array_header(block, 28, 1, functions_offset);
-            write_array_header(block, 36, 0, 0);
-            write_array_header(block, 44, 0, 0);
-            write_array_header(block, 52, 8, text_offset);
-            write_array_header(block, 60, 3, const_offset);
-            write_array_header(block, 68, 4, data_offset);
+            const u32 functions_offset = 92;
+            const u32 text_offset      = 112;
+            const u32 const_offset     = 120;
+            const u32 data_offset      = 124;
+            write_array_header(block, 44, 1, functions_offset);
+            write_array_header(block, 52, 0, 0);
+            write_array_header(block, 60, 0, 0);
+            write_array_header(block, 68, 8, text_offset);
+            write_array_header(block, 76, 3, const_offset);
+            write_array_header(block, 84, 4, data_offset);
             write_function(block, functions_offset, 0, 0, 0, 0, KindInt32);
             write_le_u16(block + text_offset, make_instruction(OpPush, KindInt32));
             write_le_u32(block + text_offset + 2, 42);
@@ -118,7 +118,7 @@ UNITTEST_SUITE_BEGIN(cova_image)
             u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
             u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
 
-            vm_segments_t segments = {{frame, 16, 16}, {bss, 0, 8}, {external, 8, 8}, {data, 0, 8}, {stack, 0, 16}};
+            vm_segments_t segments = {{frame, 16, 16}, {bss, 0, 8}, {{external, 8, 8}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}}, {data, 0, 8}, {stack, 0, 16}};
 
             vm_t vm;
             initialize_vm(&vm, {call_frames, 0, 2}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);

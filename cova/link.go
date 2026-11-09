@@ -6,13 +6,13 @@ import (
 )
 
 type Linker struct {
-	Ctx              *Context
-	VariableCapacity int
-	FunctionCapacity int
+	Ctx                *Context
+	VariableCapacities [ExternMemoryBankCount]int
+	FunctionCapacity   int
 }
 
-func NewLinker(ctx *Context, variableCapacity, functionCapacity int) *Linker {
-	return &Linker{Ctx: ctx, VariableCapacity: variableCapacity, FunctionCapacity: functionCapacity}
+func NewLinker(ctx *Context, variableCapacities [ExternMemoryBankCount]int, functionCapacity int) *Linker {
+	return &Linker{Ctx: ctx, VariableCapacities: variableCapacities, FunctionCapacity: functionCapacity}
 }
 
 // Report writes a size and symbol overview for a successfully linked program.
@@ -46,26 +46,35 @@ func (linker *Linker) Report(writer io.Writer, compiled *RelocatableProgram, lin
 	}
 
 	externalVariables := 0
-	var externalByteSize uint64
+	var externalBankSizes [ExternMemoryBankCount]uint64
 	if linked.DebugSymbols != nil {
 		for _, variable := range linked.DebugSymbols.ExternSymbols {
-			if variable.Kind != DeclVariable {
+			if variable.Kind != DeclVariable || variable.SlotIndex >= ExternMemoryBankCount {
 				continue
 			}
 			externalVariables++
 			end := uint64(variable.ByteOffset) + uint64(variable.ByteSize)
-			if end > externalByteSize {
-				externalByteSize = end
+			if end > externalBankSizes[variable.SlotIndex] {
+				externalBankSizes[variable.SlotIndex] = end
 			}
 		}
 	}
 
-	_, err := fmt.Fprintf(writer, "Text size: %d bytes\nBSS size: %d bytes\nData size: %d bytes\nConst size: %d bytes\nLocal Functions: %d functions\nExternal Functions: %d functions, %d unused\nExternal Variables: %d variables, %d bytes\n",
+	_, err := fmt.Fprintf(writer, "Text size: %d bytes\nBSS size: %d bytes\nData size: %d bytes\nConst size: %d bytes\nLocal Functions: %d functions\nExternal Functions: %d functions, %d unused\nExternal Variables: %d variables\n",
 		len(linked.Text), linked.BSSByteSize, linked.DataByteSize, linked.ConstByteSize,
-		len(linked.Functions), externalFunctions, len(unusedExternalFunctions), externalVariables, externalByteSize)
+		len(linked.Functions), externalFunctions, len(unusedExternalFunctions), externalVariables)
 	if err != nil {
 		linker.Ctx.AddError("link report error: failed to write report header: %v", err)
 		return false
+	}
+	for bank := 0; bank < ExternMemoryBankCount; bank++ {
+		if externalBankSizes[bank] == 0 {
+			continue
+		}
+		if _, err := fmt.Fprintf(writer, "External Memory %d: %d bytes\n", bank, externalBankSizes[bank]); err != nil {
+			linker.Ctx.AddError("link report error: failed to write external memory bank %d: %v", bank, err)
+			return false
+		}
 	}
 	if len(unusedExternalFunctions) > 0 {
 		if _, err := fmt.Fprintf(writer, "Unused External Functions: %d\n", len(unusedExternalFunctions)); err != nil {
@@ -101,20 +110,27 @@ func (linker *Linker) Link(program *AstProgramNode, compiled *RelocatableProgram
 		linker.failErrorf("link error: linker is nil")
 		return linked, success
 	}
-	if linker.VariableCapacity < 0 {
-		linker.failErrorf("link error: variable capacity %d is negative", linker.VariableCapacity)
-		return linked, success
-	}
 	if linker.FunctionCapacity < 0 {
 		linker.failErrorf("link error: function capacity %d is negative", linker.FunctionCapacity)
 		return linked, success
 	}
+	for bank := 0; bank < ExternMemoryBankCount; bank++ {
+		if linker.VariableCapacities[bank] < 0 {
+			linker.failErrorf("link error: variable capacity %d for memory bank %d is negative", linker.VariableCapacities[bank], bank)
+			return linked, success
+		}
+	}
 
 	for _, binding := range compiled.ProgramSymbols.ExternSymbols {
+		bank := binding.SlotIndex
+		if bank >= ExternMemoryBankCount {
+			linker.failErrorf("link error: extern variable %q uses invalid memory bank %d", binding.Name, bank)
+			return linked, success
+		}
 		byteOffset := int(binding.ByteOffset)
 		byteSize := int(binding.ByteSize)
-		if byteOffset+byteSize > linker.VariableCapacity {
-			linker.failErrorf("link error: extern variable %q requests byte range [%d,%d), but extern memory capacity is %d", binding.Name, byteOffset, byteOffset+byteSize, linker.VariableCapacity)
+		if byteOffset+byteSize > linker.VariableCapacities[bank] {
+			linker.failErrorf("link error: extern variable %q requests byte range [%d,%d) in memory bank %d, but bank capacity is %d", binding.Name, byteOffset, byteOffset+byteSize, bank, linker.VariableCapacities[bank])
 			return linked, success
 		}
 		if binding.ByteAlignment > 1 && binding.ByteOffset%binding.ByteAlignment != 0 {
@@ -181,20 +197,21 @@ func (linker *Linker) Link(program *AstProgramNode, compiled *RelocatableProgram
 
 	success = true
 	linked = &LinkedProgram{
-		Text:          linkedText,
-		EntryPoint:    uint32(entryPoint),
-		Functions:     functions,
-		ParamKinds:    paramKinds,
-		ParamOffsets:  paramOffsets,
-		FrameSize:     compiled.FrameSize,
-		FrameByteSize: compiled.FrameByteSize,
-		ConstByteSize: compiled.ConstByteSize,
-		ConstData:     append([]byte(nil), compiled.ConstData...),
-		DataByteSize:  compiled.DataByteSize,
-		DataData:      append([]byte(nil), compiled.DataData...),
-		BSSSize:       compiled.BSSSize,
-		BSSByteSize:   compiled.BSSByteSize,
-		DebugSymbols:  CopyProgramSymbols(compiled.ProgramSymbols),
+		Text:            linkedText,
+		EntryPoint:      uint32(entryPoint),
+		Functions:       functions,
+		ParamKinds:      paramKinds,
+		ParamOffsets:    paramOffsets,
+		FrameSize:       compiled.FrameSize,
+		FrameByteSize:   compiled.FrameByteSize,
+		ConstByteSize:   compiled.ConstByteSize,
+		ConstData:       append([]byte(nil), compiled.ConstData...),
+		DataByteSize:    compiled.DataByteSize,
+		DataData:        append([]byte(nil), compiled.DataData...),
+		BSSSize:         compiled.BSSSize,
+		BSSByteSize:     compiled.BSSByteSize,
+		ExternByteSizes: compiled.ExternByteSizes,
+		DebugSymbols:    CopyProgramSymbols(compiled.ProgramSymbols),
 	}
 	return linked, success
 }

@@ -44,7 +44,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
 
-            vm_segments_t segments = {{frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16}};
+            vm_segments_t segments = {{frame_storage, 32, 32}, {bss_storage, 0, 16}, {{extern_storage, 8, 8}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}}, {data_storage, 0, 16}, {stack_storage, 0, 16}};
             initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             CHECK_EQUAL((u32)0, vm.m_pc);
@@ -86,7 +86,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
                 data_storage[index] = 0xffU;
             }
 
-            vm_segments_t segments = {{frame_storage, 32, 32}, {bss_storage, 0, 16}, {extern_storage, 8, 8}, {data_storage, 0, 16}, {stack_storage, 0, 16}};
+            vm_segments_t segments = {{frame_storage, 32, 32}, {bss_storage, 0, 16}, {{extern_storage, 8, 8}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}}, {data_storage, 0, 16}, {stack_storage, 0, 16}};
             initialize_vm(&vm, {call_frames, 0, 4}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             const byte              text[]       = {OpRet, 0};
@@ -163,7 +163,7 @@ UNITTEST_SUITE_BEGIN(cova_vm)
             u32          timer_duration_ms[VMDefaultTimerCapacity] = {};
             vm_t         vm;
             const segment_memory_t empty = {nullptr, 0, 0};
-            vm_segments_t segments = {{frame_storage, 8, 8}, empty, empty, empty, {stack_storage, 0, 8}};
+            vm_segments_t segments = {{frame_storage, 8, 8}, empty, {empty, empty, empty, empty}, empty, {stack_storage, 0, 8}};
             initialize_vm(&vm, {call_frames, 0, 1}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
 
             extern_call_t call = {nullptr, 0};

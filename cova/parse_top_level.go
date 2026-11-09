@@ -144,8 +144,14 @@ func (core *parserCore) parseExternDecl() (*AstTopLevelDeclNode, bool) {
 			return nil, false
 		}
 	} else {
-		if index >= 0 {
-			return nil, core.errorf(nameToken, "extern variable offsets are automatic; remove the parenthesized offset")
+		if index < 0 {
+			return nil, core.errorf(nameToken, fmt.Sprintf("extern variables require an explicit memory bank index, e.g. extern(0..%d)", ExternMemoryBankCount-1))
+		}
+		if index >= ExternMemoryBankCount {
+			return nil, core.errorf(nameToken, fmt.Sprintf("extern variable memory bank index %d is out of range 0..%d", index, ExternMemoryBankCount-1))
+		}
+		if typ == nil || typ.Kind != TypeStruct {
+			return nil, core.errorf(nameToken, "extern variables must be struct instances; each memory bank is described by one struct")
 		}
 		decl.Kind = DeclVariable
 	}

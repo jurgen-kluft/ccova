@@ -27,7 +27,7 @@ The language is designed for small host-integrated scripts that work with primit
   - `min`, `max`, `clamp`, `map`
   - `random`, `smoothstep`, `interpolate`, `lerp`, `slerp`
 - `//` single-line and `/* ... */` block comments
-- `extern` variables with naturally aligned offsets assigned in source order
+- `extern(bank)` struct variables bound to up to 4 host-provided external memory banks
 - `extern(slot)` functions dispatched by the host
 
 ## Current Limits
@@ -100,7 +100,7 @@ struct player_state {
     char alerts[4];
 };
 
-extern player_state player;
+extern(0) player_state player;
 
 int health_drop;
 
@@ -120,7 +120,7 @@ void reduce_health(int delta) {
 }
 ```
 
-Extern functions keep explicit host dispatch slots. Extern variables omit offsets; the compiler lays them out automatically using their natural alignment.
+Extern functions keep explicit host dispatch slots. Extern variables are struct instances, one per external memory bank: `extern(N)` selects the bank (0-3), and the struct's natural field alignment defines the bank's byte layout.
 
 ## Documentation
 

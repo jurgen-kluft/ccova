@@ -39,8 +39,8 @@ UNITTEST_SUITE_BEGIN(cova_types)
             CHECK_EQUAL((u32)KindInt16, (u32)instruction_convert_from_kind(conversion));
             CHECK_EQUAL((u32)KindFloat64, (u32)instruction_kind(conversion));
 
-            const instruction_t address_instruction = make_address_instruction(SegmentExtern);
-            CHECK_EQUAL((u32)SegmentExtern, (u32)instruction_address_segment(address_instruction));
+            const instruction_t address_instruction = make_address_instruction(SegmentExtern0);
+            CHECK_EQUAL((u32)SegmentExtern0, (u32)instruction_address_segment(address_instruction));
 
             for (u32 function = 0; function <= 0x07ffU; ++function)
             {

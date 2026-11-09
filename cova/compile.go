@@ -60,7 +60,8 @@ type Compiler struct {
 	functions               []SymbolBinding
 	maxLocalSlots           uint32
 	maxFrameByteSize        uint32
-	externByteSize          uint32
+	externByteSizes         [ExternMemoryBankCount]uint32
+	externBankOwners        [ExternMemoryBankCount]string
 	bssByteSize             uint32
 	dataByteSize            uint32
 	entryFunction           uint32
@@ -146,7 +147,8 @@ func (cl *Compiler) Compile(program *AstProgramNode) (*RelocatableProgram, bool)
 	cl.functions = cl.functions[:0]
 	cl.maxLocalSlots = 0
 	cl.maxFrameByteSize = 0
-	cl.externByteSize = 0
+	cl.externByteSizes = [ExternMemoryBankCount]uint32{}
+	cl.externBankOwners = [ExternMemoryBankCount]string{}
 	cl.bssByteSize = 0
 	cl.dataByteSize = 0
 	cl.entryFunction = 0
@@ -237,6 +239,7 @@ func (cl *Compiler) Compile(program *AstProgramNode) (*RelocatableProgram, bool)
 		DataData:                append([]byte(nil), cl.dataImage...),
 		BSSSize:                 lenU32(cl.bssSymbols),
 		BSSByteSize:             cl.bssByteSize,
+		ExternByteSizes:         cl.externByteSizes,
 	}
 	return compiled, true
 }
@@ -384,14 +387,23 @@ func (cl *Compiler) registerTopLevelDecl(decl *AstTopLevelDeclNode) bool {
 	case DeclVariable:
 		switch decl.Scope {
 		case ScopeExtern:
-			byteOffsetU32, ok := checkedAlignUpU32(cl.externByteSize, binding.ByteAlignment)
-			if !ok || uint64(byteOffsetU32)+uint64(binding.ByteSize) > uint64(^uint32(0)) {
-				cl.fail("compile error on line %d: extern variable %q layout exceeds uint32", decl.Line, decl.Name)
+			if decl.Type == nil || decl.Type.Kind != TypeStruct {
+				cl.fail("compile error on line %d: extern variable %q must be a struct instance", decl.Line, decl.Name)
 				return false
 			}
-			binding.SlotIndex = lenU32(cl.externSymbols)
-			binding.ByteOffset = byteOffsetU32
-			cl.externByteSize = byteOffsetU32 + binding.ByteSize
+			if decl.Index < 0 || decl.Index >= ExternMemoryBankCount {
+				cl.fail("compile error on line %d: extern variable %q memory bank index %d is out of range 0..%d", decl.Line, decl.Name, decl.Index, ExternMemoryBankCount-1)
+				return false
+			}
+			bank := uint32(decl.Index)
+			if owner := cl.externBankOwners[bank]; owner != "" {
+				cl.fail("compile error on line %d: extern variable %q reuses memory bank %d already bound to %q", decl.Line, decl.Name, bank, owner)
+				return false
+			}
+			binding.SlotIndex = bank
+			binding.ByteOffset = 0
+			cl.externBankOwners[bank] = decl.Name
+			cl.externByteSizes[bank] = binding.ByteSize
 			cl.externSymbols = append(cl.externSymbols, binding)
 		case ScopeBSS:
 			byteOffsetU32 := alignUpU32(cl.bssByteSize, binding.ByteAlignment)
@@ -1469,7 +1481,7 @@ func (node *AstIdentNode) astEmitAddress(fc *functionCompiler) {
 			fc.code.AppendUint32(binding.ByteOffset)
 			return
 		case ScopeExtern:
-			fc.code.AppendInstruction(makeAddrInstruction(segmentExtern))
+			fc.code.AppendInstruction(makeAddrInstruction(externSegment(binding.SlotIndex)))
 			fc.code.AppendUint32(binding.ByteOffset)
 			return
 		}

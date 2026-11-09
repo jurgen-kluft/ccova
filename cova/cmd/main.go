@@ -13,21 +13,26 @@ func main() {
 	externMemory := make([]byte, 8)
 	binary.LittleEndian.PutUint32(externMemory[4:], 45)
 	script := `
+struct player_state_t {
+	int armor;
+	int health;
+};
+
 extern(0) void log_alert(int data);
-extern int player_health;
+extern(0) player_state_t player;
 int health_drop;
 
 void script_main() {
 	health_drop = 5;
-	if ((player_health - 40) + 1) {
-		log_alert(player_health);
+	if ((player.health - 40) + 1) {
+		log_alert(player.health);
 		reduce_health(health_drop);
 	}
 	return;
 }
 
 void reduce_health(int delta) {
-	player_health = player_health - delta;
+	player.health = player.health - delta;
 	return;
 }
 `
@@ -44,13 +49,13 @@ void reduce_health(int delta) {
 	compiled, ok := compiler.Compile(program)
 	checkOK(ctx, ok)
 
-	linker := cova.NewLinker(ctx, len(externMemory), 1)
+	linker := cova.NewLinker(ctx, [cova.ExternMemoryBankCount]int{0: len(externMemory)}, 1)
 	linked, success := linker.Link(program, compiled)
 	checkOK(ctx, success)
 	checkOK(ctx, linker.Report(os.Stdout, compiled, linked))
 
 	vm := cova.NewVM(256)
-	vm.BindExternBlock(externMemory)
+	vm.BindExternBlock(0, externMemory)
 	vm.RegisterExternDispatcher(0, func(_ uintptr, vm *cova.VM, importID uint32) cova.VMStatus {
 		if importID != 0 {
 			return cova.VMStatusHostFailure

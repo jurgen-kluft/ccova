@@ -24,7 +24,7 @@ namespace
 
     static void initialize_test_vm(vm_t* vm, call_frame_t* call_frames, u64* timer_end_time_ms, u32* timer_duration_ms, byte* frame, byte* bss, byte* external, byte* data, byte* stack)
     {
-        vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {external, 16, 16}, {data, 0, 16}, {stack, 0, 64}};
+        vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {{external, 16, 16}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}}, {data, 0, 16}, {stack, 0, 64}};
         initialize_vm(vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
     }
 
@@ -38,6 +38,8 @@ namespace
         program->m_bss_byte_size   = 0;
         program->m_frame_size      = param_count;
         program->m_frame_byte_size = 64;
+        for (u32 bank = 0; bank < ExternMemoryBankCount; ++bank)
+            program->m_extern_byte_sizes[bank] = 0;
         program->m_functions.set(functions, function_count);
         program->m_param_kinds.set(param_kinds, param_count);
         program->m_param_offsets.set(param_offsets, param_count);
@@ -224,7 +226,7 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
         {
             byte text_storage[64] = {};
             segment_memory_t text = {text_storage, 0, 64};
-            emit_instruction(&text, make_address_instruction(SegmentExtern));
+            emit_instruction(&text, make_address_instruction(SegmentExtern0));
             emit_u32(&text, 0);
             emit_instruction(&text, make_instruction(OpDereference, KindBool));
             emit_instruction(&text, make_instruction(OpJumpIfFalse, KindNone));
@@ -309,12 +311,12 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             byte text_storage[128] = {};
             segment_memory_t text = {text_storage, 0, 128};
             emit_push_u32(&text, KindUint32, 0x12345678U);
-            emit_instruction(&text, make_address_instruction(SegmentExtern));
+            emit_instruction(&text, make_address_instruction(SegmentExtern0));
             emit_u32(&text, 0);
             emit_push_u32(&text, KindInt32, 4);
             emit_instruction(&text, make_instruction(OpOffset, KindNone));
             emit_instruction(&text, make_instruction(OpAssign, KindUint32));
-            emit_instruction(&text, make_address_instruction(SegmentExtern));
+            emit_instruction(&text, make_address_instruction(SegmentExtern0));
             emit_u32(&text, 4);
             emit_instruction(&text, make_instruction(OpDereference, KindUint32));
             emit_instruction(&text, make_instruction(OpRet, KindNone));
@@ -333,7 +335,46 @@ UNITTEST_SUITE_BEGIN(cova_vm_execution)
             run_vm(&vm, 0);
 
             CHECK_EQUAL((u32)0x12345678U, pop_bits32(&vm, KindUint32));
-            CHECK_EQUAL((u32)0x12345678U, read_u32(&vm.m_memory, make_address(SegmentExtern, 4)));
+            CHECK_EQUAL((u32)0x12345678U, read_u32(&vm.m_memory, make_address(SegmentExtern0, 4)));
+        }
+
+        UNITTEST_TEST(multiple_extern_memory_banks)
+        {
+            byte text_storage[128] = {};
+            segment_memory_t text = {text_storage, 0, 128};
+            emit_push_u32(&text, KindUint32, 0x11111111U);
+            emit_instruction(&text, make_address_instruction(SegmentExtern1));
+            emit_u32(&text, 0);
+            emit_instruction(&text, make_instruction(OpAssign, KindUint32));
+            emit_push_u32(&text, KindUint32, 0x33333333U);
+            emit_instruction(&text, make_address_instruction(SegmentExtern3));
+            emit_u32(&text, 4);
+            emit_instruction(&text, make_instruction(OpAssign, KindUint32));
+            emit_instruction(&text, make_address_instruction(SegmentExtern1));
+            emit_u32(&text, 0);
+            emit_instruction(&text, make_instruction(OpDereference, KindUint32));
+            emit_instruction(&text, make_instruction(OpRet, KindNone));
+
+            const script_function_t functions[] = {{0, 0, 0, 0, KindUint32}};
+            linked_program_t program;
+            initialize_program(&program, text_storage, text.m_size, functions, 1);
+            program.m_extern_byte_sizes[1] = 4;
+            program.m_extern_byte_sizes[3] = 8;
+
+            byte frame[64] = {}, bss[16] = {}, external1[8] = {}, external3[8] = {}, data[16] = {}, stack[64] = {};
+            call_frame_t call_frames[8] = {};
+            u64 timer_end_time_ms[VMDefaultTimerCapacity] = {};
+            u32 timer_duration_ms[VMDefaultTimerCapacity] = {};
+            vm_t vm;
+            vm_segments_t segments = {{frame, 64, 64}, {bss, 0, 16}, {{nullptr, 0, 0}, {external1, 8, 8}, {nullptr, 0, 0}, {external3, 8, 8}}, {data, 0, 16}, {stack, 0, 64}};
+            initialize_vm(&vm, {call_frames, 0, 8}, {timer_end_time_ms, timer_duration_ms, VMDefaultTimerCapacity}, segments);
+            load_program(&vm, &program);
+            run_vm(&vm, 0);
+
+            CHECK_EQUAL((u32)0x11111111U, pop_bits32(&vm, KindUint32));
+            CHECK_EQUAL((u32)0x11111111U, read_u32(&vm.m_memory, make_address(SegmentExtern1, 0)));
+            CHECK_EQUAL((u32)0x33333333U, read_u32(&vm.m_memory, make_address(SegmentExtern3, 4)));
+            CHECK_EQUAL((u32)0, read_u32(&vm.m_memory, make_address(SegmentExtern3, 0)));
         }
 
         UNITTEST_TEST(conditional_and_unconditional_jump)
